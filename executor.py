@@ -1,6 +1,6 @@
 import json
 import os
-import webbrowser
+import webbrowser, urllib.parse
 
 if os.path.exists("targets.json"):
     with open("targets.json", "r") as f:
@@ -37,3 +37,11 @@ def comparison(target_url):
     webbrowser.open(url)
     return url 
 
+def run_search(query):
+    if not query:
+        return
+    encoded_query = urllib.parse.quote(query)
+    # Changed from google.com to search.brave.com
+    url = f"https://search.brave.com/search?q={encoded_query}"
+    webbrowser.open(url)
+    return url

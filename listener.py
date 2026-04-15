@@ -22,30 +22,25 @@ def wait_for_clap():
             return
         
 def record_command():
-    print("Listening for command...")
-    MAX_DURATION = 3
-    audio = sd.rec(int(MAX_DURATION * SAMPLE_RATE), samplerate=SAMPLE_RATE, channels=1, dtype='float32')
-    sd.wait()
-    
-    # Find where silence starts at the end
-    chunk_samples = int(CHUNK_DURATION * SAMPLE_RATE)
-    end_sample = len(audio)
-    silent_duration = 0.0
-    
-    for i in range(0, len(audio), chunk_samples):
-        chunk = audio[i:i+chunk_samples]
-        peak = np.max(np.abs(chunk))
-        if peak < 0.15:
-            silent_duration += CHUNK_DURATION
-        else:
-            silent_duration = 0.0
-        if silent_duration >= SILENCE_TIMEOUT:
-            end_sample = i
-            break
-    
-    audio = audio[:end_sample]
-    audio_int16 = (audio * 32767).astype(np.int16)
-    wav.write(OUTPUT_WAV, SAMPLE_RATE, audio_int16)
+    silence = 0
+    frames = []
+    with sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype='float32') as stream:
+        chunk_samples = int(CHUNK_DURATION * SAMPLE_RATE)
+        print("Waiting for command...")
+        while True:
+            chunk, _ = stream.read(chunk_samples)
+            frames.append(chunk)
+            peak = np.max(np.abs(chunk))
+            if peak < 0.15:
+                silence += CHUNK_DURATION
+
+                if silence >= SILENCE_TIMEOUT:
+                    break
+            else:
+                silence = 0
+    audio = np.concatenate(frames, axis=0)
+    audio_16 = (audio*32767).astype(np.int16)
+    wav.write(OUTPUT_WAV, SAMPLE_RATE, audio_16)
     return OUTPUT_WAV
 
 if __name__ == "__main__":
