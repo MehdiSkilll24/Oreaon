@@ -1,7 +1,7 @@
 from faster_whisper import WhisperModel
 import ollama
 import json, os
-import re 
+import re, time
 
 audio_path = r"C:\Users\mehdi\Desktop\Pythonfiles\Projects\Jarvis\command.wav"
 
@@ -14,6 +14,7 @@ else:
 valid_targets = ", ".join(TARGETS.keys())
 
 SYSTEM_PROMPT = f"""
+/no_think
 You are a command parser for a voice assistant.
 Receive transcribed text and return ONLY a JSON object. No prose.
 
@@ -31,11 +32,19 @@ Rules:
 5. ACTION "unknown": Use for absurd requests or corrupted input.
 
 Examples:
+
 "open YouTube" -> {{"action": "open", "target": "youtube"}}
 "search for quantum physics" -> {{"action": "search", "target": "quantum physics"}}
 "who is the president?" -> {{"action": "speak", "target": "The President is [Name]."}}
 "search for" -> {{"action": "unknown", "target": null}}
 "goodbye jarvis" -> {{"action": "stop", "target": null}}
+
+Optional chaining:
+{{"action": "open", "target": "<app_name>", "then": {{"action": "search", "target": "<query>"}}}}
+
+Example:
+"open youtube and play we are the people" -> {{"action": "open", "target": "youtube", "then": {{"action": "play", "target": "we are the people"}}}}
+"open youtube and search for lofi" -> {{"action": "open", "target": "youtube", "then": {{"action": "search", "target": "lofi"}}}}
 """
 
 model = WhisperModel("tiny", device="cuda", compute_type="float16")
@@ -46,10 +55,12 @@ def transcribe(path):
     return text
 
 def understand(text):
-
-    in_response = ollama.chat(model="qwen3:1.7b", messages=[{"role" : "system", "content" : SYSTEM_PROMPT},
-                                                            {"role" : "user", "content" : text}])
-    content = in_response['message']['content']
+    t = time.time()
+    in_response = ollama.chat(model= "qwen3:1.7b", messages=[
+    {"role": "system", "content": SYSTEM_PROMPT},
+    {"role": "user", "content": text}
+    ])
+    content = in_response.message.content
     content = re.sub(r'<think>.*?</think>', '', content, flags = re.DOTALL).strip()
     response = json.loads(content)
     return response
