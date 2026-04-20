@@ -1,4 +1,4 @@
-import tts, listener, brain, executor, time
+import tts, listener, brain, executor, keyboard
 
 
 def handle_action(action, target, then, context = None):
@@ -40,22 +40,24 @@ def handle_action(action, target, then, context = None):
     else:
         tts.speak("I'm not sure I understood that.")
         return True, context
-        
+
+def wait_for_input():
+    keyboard.wait('f8')
+    return listener.rec()
+
 if __name__ == "__main__":
     tts.speak("Jarvis online and ready, how can I help you, sir ?")
     flag = True
     context = None
     while flag:
-        listener.wait_for_clap()
-        path = listener.record_command()
-        t = time.time()
+        path = wait_for_input()
         text = brain.transcribe(path).lower()
         print(text)
         response = brain.understand(text)
         print(response)
-        print(response.get("then"))
         action = response.get("action")
         target = response.get("target")
+        print(response.get("then"))
         flag, context = handle_action(action, target, bool(response.get("then")))
         if response.get("then"):
             then = response.get("then")

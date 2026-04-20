@@ -1,32 +1,19 @@
 import sounddevice as sd
 import numpy as np
 import scipy.io.wavfile as wav
-
+import tts
 
 SAMPLE_RATE = 16000
-CLAP_THRESHOLD = 0.3
 SILENCE_TIMEOUT = 2
 CHUNK_DURATION = 0.1
 OUTPUT_WAV = r"C:\Users\mehdi\Desktop\Pythonfiles\Projects\Jarvis\command.wav"
 
-
-def wait_for_clap():
-    print("waiting for clap...")
-    while True:
-        chunk = sd.rec(int(CHUNK_DURATION*SAMPLE_RATE), samplerate=SAMPLE_RATE, channels=1, dtype='float32')
-        sd.wait()
-        peak = np.max(np.abs(chunk))
-        if peak > CLAP_THRESHOLD:
-            print(f"Clap detected! (peak: {peak:.2f})")
-            sd.sleep(300)
-            return
-        
-def record_command():
+def rec():
     silence = 0
     frames = []
     with sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype='float32') as stream:
         chunk_samples = int(CHUNK_DURATION * SAMPLE_RATE)
-        print("Waiting for command...")
+        tts.speak("Listening")
         while True:
             chunk, _ = stream.read(chunk_samples)
             frames.append(chunk)
@@ -43,8 +30,7 @@ def record_command():
     wav.write(OUTPUT_WAV, SAMPLE_RATE, audio_16)
     return OUTPUT_WAV
 
-if __name__ == "__main__":
-    wait_for_clap()
-    record_command()
 
+if __name__ == "__main__":
+    rec()
 

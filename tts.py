@@ -2,7 +2,7 @@ import subprocess
 import sounddevice as sd
 import numpy as np
 import wave
-import os
+import time
 
 PIPER_EXE = r"C:\Users\mehdi\Desktop\Pythonfiles\Projects\Jarvis\voices\piper\piper.exe"
 VOICE_MODEL = r"C:\Users\mehdi\Desktop\Pythonfiles\Projects\Jarvis\voices\piper\en_US-lessac-medium.onnx"
@@ -17,6 +17,7 @@ def speak(text: str):
         rate = f.getframerate()
         frames = f.readframes(f.getnframes())
         audio = np.frombuffer(frames, dtype=np.int16)
+    time.sleep(0.3)
     sd.play(audio, samplerate=rate)
     sd.wait()
 
