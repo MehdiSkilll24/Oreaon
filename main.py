@@ -1,7 +1,7 @@
-import tts, listener, brain, executor, keyboard
+import tts, listener, brain, executor, keyboard, subprocess
 
 
-def handle_action(action, target, then, context = None):
+def handle_action(action, target, then, folder, operation, value, context = None):
     print(f"handle_action called: action={action}, target={target}, context={context}")
     if action == "speak":
         tts.speak(target)
@@ -37,6 +37,24 @@ def handle_action(action, target, then, context = None):
         executor.play(url, context)
         return True, context
 
+    elif action == "delete":
+        executor.delete(target, folder)
+        return True, context
+
+    elif action == "find":
+        matches = executor.find_files(target, folder)
+        if matches:
+            full_path, file_name, folder_name = matches[0]
+            subprocess.Popen(f'explorer /select,"{full_path}"')
+        else:
+            tts.speak(f"File {target} not found.")
+
+        return True, context
+    
+    elif action == "control":
+        executor.control(target, operation, value)
+        return True, context
+    
     else:
         tts.speak("I'm not sure I understood that.")
         return True, context
@@ -57,9 +75,15 @@ if __name__ == "__main__":
         print(response)
         action = response.get("action")
         target = response.get("target")
+        folder = response.get("folder")
+        operation = response.get("operation")
+        value = response.get("value")
         print(response.get("then"))
-        flag, context = handle_action(action, target, bool(response.get("then")))
+        flag, context = handle_action(action, target, bool(response.get("then")), folder, operation, value, context)
         if response.get("then"):
             then = response.get("then")
-            flag, context = handle_action(then["action"], then["target"], True, context)
+            operation = then.get("operation")
+            value = then.get("value")
+            flag, context = handle_action(then["action"], then["target"], True, folder, operation, value, context)
+            
 

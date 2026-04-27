@@ -5,6 +5,8 @@ import re, time
 
 audio_path = r"C:\Users\mehdi\Desktop\Pythonfiles\Projects\Jarvis\command.wav"
 
+
+
 if os.path.exists("targets.json"):
     with open("targets.json", "r") as f:
         TARGETS = json.load(f)
@@ -22,14 +24,24 @@ JSON Format:
 {{"action": "open", "target": "<app_name>"}}
 {{"action": "search", "target": "<query>"}}
 {{"action": "speak", "target": "<response>"}}
+{{"action": "control", "target": "<parameter>", "operation": "<set|increase|decrease|execute>", "value": <number|null>}}
 {{"action": "stop", "target": null}}
+{{"action": "delete", "target": "<filename>", "folder": "<folder_name>"}}
+{{"action": "find", "target": "<filename>", "folder": "<folder_name>"}}
+
+
 
 Rules:
 1. ACTION "open": Use only if the command matches these targets: {valid_targets}.
 2. ACTION "search": Triggered by "search" or "search for". The target is only the query after these keywords. If the query is empty, return action "unknown".
 3. ACTION "speak": Default for questions or greetings. Provide a concise, pragmatic answer as the target.
 4. ACTION "stop": Triggered by "stop", "exit", or "goodbye".
-5. ACTION "unknown": Use for absurd requests or corrupted input.
+5. ACTION "delete": Triggered by "delete" or "remove". target is the filename, folder is one of: downloads, documents, music. If no folder mentioned, default to None
+6. ACTION "find": Triggered by "find" or "look for". target is the filename, folder is one of: downloads, documents, music. If no folder mentioned, default to None
+7. ACTION "control": Triggered by "set", "increase", or "decrease" commands.
+Valid targets: volume, brightness, screenshot
+Returns JSON with operation type.
+8. ACTION "unknown": Use for absurd requests or corrupted input.
 
 Examples:
 
@@ -38,10 +50,17 @@ Examples:
 "who is the president?" -> {{"action": "speak", "target": "The President is [Name]."}}
 "search for" -> {{"action": "unknown", "target": null}}
 "goodbye jarvis" -> {{"action": "stop", "target": null}}
+"delete test.mp3 from music" -> {{"action": "delete", "target": "test.mp3", "folder": "music"}}
+"delete test.mp3" -> {{"action": "delete", "target": "test.mp3", "folder": "None"}}
+"find test.mp3" -> {{"action": "find", "target": "test.mp3", "folder": "None"}}
+
+"set volume to 50" -> {{"action": "control", "target": "volume", "operation": "set", "value": 50}}
+"increase brightness by 20" -> {{"action": "control", "target": "brightness", "operation": "increase", "value": 20}}
+"take a screenshot" -> {{"action": "control", "target": "screenshot", "operation": "execute", "value": null}} 
+
 
 Optional chaining:
 {{"action": "open", "target": "<app_name>", "then": {{"action": "search", "target": "<query>"}}}}
-
 Example:
 "open youtube and play we are the people" -> {{"action": "open", "target": "youtube", "then": {{"action": "play", "target": "we are the people"}}}}
 "open youtube and search for lofi" -> {{"action": "open", "target": "youtube", "then": {{"action": "search", "target": "lofi"}}}}
