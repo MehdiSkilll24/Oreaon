@@ -1,7 +1,7 @@
-# Jarvis
+# Oreaon
 
 [README.md](https://github.com/user-attachments/files/26698211/README.md)
-# Jarvis — Local Voice Assistant
+# Oreaon — Local Voice Assistant
 
 A fully offline, Iron Man-inspired voice assistant for Windows. Press f8 to activate, speak a command, and Oreaon opens apps or websites — no cloud, no API keys, no cost.
 
@@ -101,10 +101,10 @@ cd C:\path\to\Jarvis
 python main.py
 ```
 
-1. Jarvis announces itself via TTS
+1. Oreaon announces itself via TTS
 2. Clap near your microphone
 3. Speak your command (e.g. *"open YouTube"*)
-4. Jarvis opens the target in your browser
+4. Oreaon opens the target in your browser
 
 ---
 
@@ -120,7 +120,7 @@ python main.py
 
 ### Adding new commands
 
-If Jarvis doesn't recognise a command, it will ask if you want to add it. New entries are saved to `targets.json` and available immediately on the next run.
+If Oreaon doesn't recognise a command, it will ask if you want to add it. New entries are saved to `targets.json` and available immediately on the next run.
 
 ---
 
