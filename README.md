@@ -3,7 +3,7 @@
 [README.md](https://github.com/user-attachments/files/26698211/README.md)
 # Jarvis — Local Voice Assistant
 
-A fully offline, Iron Man-inspired voice assistant for Windows. Clap to activate, speak a command, and Jarvis opens apps or websites — no cloud, no API keys, no cost.
+A fully offline, Iron Man-inspired voice assistant for Windows. Press f8 to activate, speak a command, and Oreaon opens apps or websites — no cloud, no API keys, no cost.
 
 ---
 
