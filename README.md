@@ -102,7 +102,7 @@ python main.py
 ```
 
 1. Oreaon announces itself via TTS
-2. Clap near your microphone
+2. Toggle your microphone by pressing f8
 3. Speak your command (e.g. *"open YouTube"*)
 4. Oreaon opens the target in your browser
 
