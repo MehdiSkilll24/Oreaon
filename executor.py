@@ -7,13 +7,21 @@ import send2trash
 import tts
 import pyautogui
 from screen_brightness_control import get_brightness, set_brightness
-import subprocess
+import subprocess, psutil
+import requests
+from datetime import datetime, timedelta
+import re
+import pygetwindow as gw
 
 DW_DIR = r"C:\Users\mehdi\Downloads"
 DC_DIR = r"C:\Users\mehdi\Documents"
 MUSIC_DIR = r"C:\Users\mehdi\Music"
-NIR_CMD_PATH = r"C:\Users\mehdi\Desktop\Pythonfiles\Projects\Jarvis\nircmd-x64\nircmdc.exe"
+NIR_CMD_PATH = r"C:\Users\mehdi\Desktop\Pythonfiles\Projects\OREAON-MAIN\nircmd-x64\nircmdc.exe"
 
+CHENGDU_LAT = 30.5728
+CHENGDU_LON = 104.0668
+
+windows = gw.getAllWindows()
 
 if os.path.exists("targets.json"):
     with open("targets.json", "r") as f:
@@ -100,6 +108,92 @@ def play(search_url, context):
             page.locator('a[href*="/track/"]').first.click()
         except Exception as e:
             print(f"Page closed: {e}")
+
+def parse_time_string(time_str):
+    """Extract hours from strings like '3 hours', 'in 2 hours', 'tomorrow', etc."""
+    if not time_str:
+        return 0
+    
+    # Map word numbers to digits
+    word_to_num = {
+        "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+        "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+        
+    }
+
+    time_lower = time_str.lower()
+
+
+    for word, num in word_to_num.items():
+        if f"{word} days" in time_lower or f"{word} day" in time_lower:
+            return num * 24
+
+    for word, num in word_to_num.items():
+        if word in time_lower:
+            return num
+
+    match = re.search(r'(\d+)s*hours?', time_lower)
+    if match:
+        return int(match.group(1))
+    
+    match = re.search(r'(\d+)\s*days?', time_lower)
+    if match:
+        return int(match.group(1)) * 24
+    
+    if "tomorrow" in time_str.lower():
+        return 24
+    
+    # Match "tonight"
+    if "tonight" in time_str.lower():
+        return 12
+    
+    return 0
+
+def get_weather(hours_ahead):
+    """Fetch weather from Open-Meteo API."""
+    url = "https://api.open-meteo.com/v1/forecast"
+    params = {
+        "latitude": CHENGDU_LAT,
+        "longitude": CHENGDU_LON,
+        "hourly": "temperature_2m,weather_code,wind_speed_10m,precipitation",
+        "timezone": "auto"
+    }
+    response = requests.get(url, params=params)
+    data = response.json()
+    
+    # Get current hour + offset
+    now = datetime.now()
+    target_time = now + timedelta(hours=hours_ahead)
+    hour_index = target_time.hour
+    
+    # Extract weather for that hour
+    temps = data['hourly']['temperature_2m']
+    wind = data['hourly']['wind_speed_10m']
+    precip = data['hourly']['precipitation']
+    
+    return {
+        "temp": temps[hour_index],
+        "wind": wind[hour_index],
+        "precipitation": precip[hour_index]
+    }
+
+def format_weather_response(weather_data, hours_ahead):
+    """Create a natural response."""
+    temp = weather_data["temp"]
+    wind = weather_data["wind"]
+    precip = weather_data["precipitation"]
+    
+    time_str = f"in {hours_ahead} hours" if hours_ahead > 0 else "right now"
+    
+    response = f"The weather {time_str} is {temp} degrees, with {wind} killometers per hour winds"
+    
+    if precip > 0:
+        response += f", and {precip}mm of rain expected"
+    
+    else:
+        response += f", and no precipitations expected"
+    
+    return response
 
 
 def find_files(filename, folder=None):
@@ -204,7 +298,7 @@ def control(target, operation, value):
     elif target == "brightness":
         if operation == "set":
             set_brightness(value)
-            final_value = value
+            final_brightness = value
         elif operation == "increase":
             final_brightness = get_brightness()[0] + value
             set_brightness(final_brightness)
@@ -223,3 +317,124 @@ def control(target, operation, value):
             subprocess.run([NIR_CMD_PATH, "changesysvolume", str(-value)])
         volume_pct = int(value/65535) * 100
         tts.speak(f"I have set the volume to {volume_pct}")
+
+def handle_speak(response, context):
+    target = response.get("target")
+    tts.speak(target)
+    return True, context
+
+def handle_stop(response, context):
+    tts.speak("Shutting down.")
+    return False, context
+
+def handle_search(response, context):
+    target = response.get("target")
+    if context and context in SEARCH_URLS:
+        url = SEARCH_URLS[context] + target.replace(" ", "+")
+        open_url(url)
+    else:
+        url = run_search(target)
+    return True, context
+
+def handle_open(response, context):
+    target = response.get("target")
+    then = response.get("then")
+    context = target
+    url = comparison(target)
+    if url == None:
+        return False, context
+    if not then:
+        open_url(url)
+    return True, context
+
+def handle_play(response, context):
+    target = response.get("target")
+    if not context or context not in SEARCH_URLS:
+        tts.speak("I don't know where to play that.")
+        return True, context
+    url = SEARCH_URLS[context] + target.replace(" ", "+")
+    play(url, context)
+    return True, context
+
+def handle_delete(response, context):
+    target = response.get("target")
+    folder = response.get("folder")
+    delete(target, folder)
+    return True, context
+
+def handle_find(response, context):
+    import subprocess
+    target = response.get("target")
+    folder = response.get("folder")
+    matches = find_files(target, folder)
+    if matches:
+        full_path, file_name, folder_name = matches[0]
+        subprocess.Popen(f'explorer /select,"{full_path}"')
+    else:
+        tts.speak(f"File {target} not found.")
+    return True, context
+
+def handle_control(response, context):
+    target = response.get("target")
+    operation = response.get("operation")
+    value = response.get("value")
+    control(target, operation, value)
+    return True, context
+
+def handle_weather(response, context):
+    time = response.get("time")
+    hours = parse_time_string(time)
+    print(f"Parsed hours{hours}")
+    info = get_weather(hours)
+    answer = format_weather_response(info, hours)
+    print(f"Answer {answer}")
+    tts.speak(answer)
+    return True, context
+
+def handle_sys(response, context):
+    try:
+        gpu_result = subprocess.run(
+            ["nvidia-smi", "--query-gpu=utilization.gpu", "--format=csv,noheader,nounits"],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        gpu = gpu_result.stdout.strip()
+    except:
+        gpu = "unavailable"
+    target = response.get("target")
+    tasks = {
+        "battery": psutil.sensors_battery().percent,
+        "cpu": psutil.cpu_percent(interval=1),
+        "ram": psutil.virtual_memory().percent,
+        "storage": psutil.disk_usage('C:').percent,
+        "gpu": gpu_result.stdout.strip()
+    }
+    if target and target in tasks:
+        answer = f"{target} usage is currently at {tasks[target]}%"
+    else:
+        # All info
+        answer = f"System status: CPU {tasks['cpu']}%, RAM {tasks['ram']}%, Storage {tasks['storage']}%, Battery {tasks['battery']}%, GPU {tasks['gpu']}%"
+    
+    tts.speak(answer)
+    return True, context
+
+def handle_window(response, context):
+    action = response.get("action")
+    target = response.get("target").lower()
+    operation = response.get("operation")
+    try:
+        window = gw.getWindowsWithTitle(target)[0]
+    except IndexError:
+        tts.speak(f"Could not find window {target}")
+        return True, context
+
+    operations = {
+    "minimize": lambda w: w.minimize(),
+    "maximize": lambda w: w.maximize(),
+    "close": lambda w: w.close(),
+    "focus": lambda w: w.activate()
+    }
+    operations[operation](window)
+    tts.speak(f"{action}d {target}")
+    return True, context
