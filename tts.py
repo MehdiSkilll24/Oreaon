@@ -4,16 +4,16 @@ import numpy as np
 import wave
 import time
 
-PIPER_EXE = r"C:\Users\mehdi\Desktop\Pythonfiles\Projects\OREAON-MAIN\voices\piper\piper.exe"
-VOICE_MODEL = r"C:\Users\mehdi\Desktop\Pythonfiles\Projects\OREAON-MAIN\voices\piper\en_US-lessac-medium.onnx.json"
-OUTPUT_WAV = r"C:\Users\mehdi\Desktop\Pythonfiles\Projects\OREAON-MAIN\test.wav"
+PIPER_EXE = r"C:\Users\mehdi\Desktop\Pythonfiles\Projects\OREAON\voices\piper\piper.exe"
+VOICE_MODEL = r"C:\Users\mehdi\Desktop\Pythonfiles\Projects\OREAON\voices\piper\en_US-lessac-medium.onnx.json"
+OUTPUT_WAV = r"C:\Users\mehdi\Desktop\Pythonfiles\Projects\OREAON\test.wav"
 
 def speak(text: str):
-    temp_file = r"C:\Users\mehdi\Desktop\Pythonfiles\Projects\OREAON-MAIN\temp_speech.txt"
+    temp_file = r"C:\Users\mehdi\Desktop\Pythonfiles\Projects\OREAON\temp_speech.txt"
     with open(temp_file, "w") as f:
         f.write(text)
     
-    piper_dir = r"C:\Users\mehdi\Desktop\Pythonfiles\Projects\OREAON-MAIN\voices\piper"
+    piper_dir = r"C:\Users\mehdi\Desktop\Pythonfiles\Projects\OREAON\voices\piper"
     cmd = f'powershell -Command "Get-Content \'{temp_file}\' | & \'{piper_dir}\\piper.exe\' --model \'{piper_dir}\\en_US-lessac-medium.onnx\' --output_file \'{OUTPUT_WAV}\'"'
     result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
     print(f"Return code: {result.returncode}")

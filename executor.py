@@ -16,7 +16,7 @@ import pygetwindow as gw
 DW_DIR = r"C:\Users\mehdi\Downloads"
 DC_DIR = r"C:\Users\mehdi\Documents"
 MUSIC_DIR = r"C:\Users\mehdi\Music"
-NIR_CMD_PATH = r"C:\Users\mehdi\Desktop\Pythonfiles\Projects\OREAON-MAIN\nircmd-x64\nircmdc.exe"
+NIR_CMD_PATH = r"C:\Users\mehdi\Desktop\Pythonfiles\Projects\OREAON\nircmd-x64\nircmdc.exe"
 
 CHENGDU_LAT = 30.5728
 CHENGDU_LON = 104.0668
@@ -420,9 +420,9 @@ def handle_sys(response, context):
     return True, context
 
 def handle_window(response, context):
-    action = response.get("action")
-    target = response.get("target").lower()
     operation = response.get("operation")
+    target = response.get("target").lower()
+    
     try:
         window = gw.getWindowsWithTitle(target)[0]
     except IndexError:
@@ -430,11 +430,17 @@ def handle_window(response, context):
         return True, context
 
     operations = {
-    "minimize": lambda w: w.minimize(),
-    "maximize": lambda w: w.maximize(),
-    "close": lambda w: w.close(),
-    "focus": lambda w: w.activate()
+        "minimize": lambda w: w.minimize(),
+        "maximize": lambda w: w.maximize(),
+        "close": lambda w: w.close(),
+        "focus": lambda w: (w.minimize(), __import__('time').sleep(0.3), w.restore())
     }
-    operations[operation](window)
-    tts.speak(f"{action}d {target}")
+    
+    try:
+        operations[operation](window)
+    except Exception as e:
+        print(f"Window operation failed: {e}")
+    
+    tts.speak(f"{operation}d {target}")
     return True, context
+

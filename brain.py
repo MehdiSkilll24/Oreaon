@@ -3,7 +3,7 @@ import ollama
 import json, os
 import re, time
 
-audio_path = r"C:\Users\mehdi\Desktop\Pythonfiles\Projects\OREAON-MAIN\command.wav"
+audio_path = r"C:\Users\mehdi\Desktop\Pythonfiles\Projects\OREAON\command.wav"
 
 
 if os.path.exists("targets.json"):

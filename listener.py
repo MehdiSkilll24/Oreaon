@@ -6,7 +6,7 @@ import tts
 SAMPLE_RATE = 16000
 SILENCE_TIMEOUT = 2
 CHUNK_DURATION = 0.1
-OUTPUT_WAV = r"C:\Users\mehdi\Desktop\Pythonfiles\Projects\Oreaon-main\command.wav"
+OUTPUT_WAV = r"C:\Users\mehdi\Desktop\Pythonfiles\Projects\OREAON\command.wav"
 
 def rec():
     silence = 0
