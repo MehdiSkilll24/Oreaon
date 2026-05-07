@@ -1,0 +1,24 @@
+{
+  "events": [
+    {
+      "date": "today",
+      "time": "3.27 PM.",
+      "title": "meeting"
+    },
+    {
+      "date": "2026-05-07",
+      "time": "430 PM",
+      "title": "meeting"
+    },
+    {
+      "date": "2026-05-08",
+      "time": "5 PM",
+      "title": "interview meeting"
+    },
+    {
+      "date": "2026-05-07",
+      "time": "5 PM",
+      "title": "meeting"
+    }
+  ]
+}

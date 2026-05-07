@@ -10,18 +10,28 @@ from screen_brightness_control import get_brightness, set_brightness
 import subprocess, psutil
 import requests
 from datetime import datetime, timedelta
-import re
+import re, webbrowser
 import pygetwindow as gw
+
 
 DW_DIR = r"C:\Users\mehdi\Downloads"
 DC_DIR = r"C:\Users\mehdi\Documents"
 MUSIC_DIR = r"C:\Users\mehdi\Music"
 NIR_CMD_PATH = r"C:\Users\mehdi\Desktop\Pythonfiles\Projects\OREAON\nircmd-x64\nircmdc.exe"
+CALENDAR_FILE = r"C:\Users\mehdi\Desktop\Pythonfiles\Projects\OREAON\calendar.json"
+HTML_FILE = r"C:\Users\mehdi\Desktop\Pythonfiles\Projects\OREAON\calendar.html"
 
 CHENGDU_LAT = 30.5728
 CHENGDU_LON = 104.0668
 
 windows = gw.getAllWindows()
+
+# Map word numbers to digits
+word_to_num = {
+    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+    "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+    "eleven": 11, "twelve": 12  
+}
 
 if os.path.exists("targets.json"):
     with open("targets.json", "r") as f:
@@ -102,24 +112,20 @@ def play(search_url, context):
             page.click('a#video-title')
         except Exception as e:
             print(f"Page closed: {e}")
-    elif context == "music":
+    elif context == "music" or context == "spotify":
         try:
             page.wait_for_selector('a[href*="/track/"]', state="visible")
             page.locator('a[href*="/track/"]').first.click()
+        
         except Exception as e:
             print(f"Page closed: {e}")
+    return True, context
 
 def parse_time_string(time_str):
     """Extract hours from strings like '3 hours', 'in 2 hours', 'tomorrow', etc."""
     if not time_str:
         return 0
     
-    # Map word numbers to digits
-    word_to_num = {
-        "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
-        "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
-        
-    }
 
     time_lower = time_str.lower()
 
@@ -444,3 +450,131 @@ def handle_window(response, context):
     tts.speak(f"{operation}d {target}")
     return True, context
 
+def handle_spotify(response, context):
+    genre = response.get("genre")
+    
+    # Open Spotify
+
+    browser = get_browser()
+    context_obj = browser.contexts[0]
+    page = context_obj.new_page()
+    page.goto("https://open.spotify.com")
+
+    # Search for genre playlist
+
+    search_box = page.locator('[data-testid="search-input"]')
+    search_box.fill(genre + " playlist")
+    page.keyboard.press("Enter")
+
+    # Wait and click first result
+    page.wait_for_selector('a[href*="/playlist/"]', timeout=5000)
+    page.click('a[href*="/playlist/"]')
+
+    # Wait for page to load
+    page.wait_for_load_state('networkidle')
+
+    # Scroll to make play button visible
+    page.evaluate("window.scrollTo(0, 0)")
+
+    # Try different selector for play button
+
+    page.click('a[data-testid="internal-track-link"]')
+
+    tts.speak(f"Playing {genre} music")
+    return True, context
+
+def handle_calendar(response, context):
+    try:
+        with open(CALENDAR_FILE, "r", encoding='utf-8') as f:
+            data = json.load(f)
+            events = data.get("events", [])
+    except:
+        events = []
+
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Oreaon Calendar</title>
+        <style>
+            body {{ font-family: Arial; background: #1e1e1e; color: white; padding: 20px; }}
+            .container {{ max-width: 800px; margin: auto; }}
+            h1 {{ color: #00d4ff; }}
+            .event {{ background: #2d2d2d; padding: 15px; margin: 10px 0; border-left: 4px solid #00d4ff; }}
+            .time {{ color: #00d4ff; font-weight: bold; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>📅 Oreaon Calendar</h1>
+    """
+    if events:
+        for event in events:
+            html_content += f"""
+            <div class="event">
+                <div class="time">{event.get('date')} at {event.get('time')}</div>
+                <div>{event.get('title')}</div>
+            </div>
+            """
+    else:
+        html_content += "<p>No events scheduled</p>"
+
+    html_content += """
+        </div>
+    </body>
+    </html>
+    """
+    with open(HTML_FILE, "w", encoding='utf-8') as f:
+        f.write(html_content)
+
+    webbrowser.open(f"file:///{HTML_FILE}")
+    tts.speak("Opening your calendar")
+    return True, context
+
+def parse_date(date_str):
+    now = datetime.now()
+    date_lower = date_str.lower()
+
+    if date_lower == "tomorrow":  # lowercase
+        return (now + timedelta(days=1)).strftime("%Y-%m-%d")
+    elif date_lower == "today":
+        return now.strftime("%Y-%m-%d")
+    else:
+        try:
+            return datetime.strptime(date_str, "%Y-%m-%d").strftime("%Y-%m-%d")
+        except:
+            return None
+
+def handle_schedule(response, context):
+    title = response.get("title")
+    date_str = response.get("date")
+    time_str = response.get("time")
+
+    if not date_str or not title or not time_str:
+        tts.speak("Missing event details")
+        return True, context
+    
+    time_normalized = re.sub(r'\b(a\.?m\.?|p\.?m\.?)\b', lambda m: m.group(1).upper().replace('.', ''), time_str, flags=re.IGNORECASE)
+
+    parsed_date = parse_date(date_str)
+    if not parsed_date:
+        tts.speak("Could not parse date")
+        return True, context
+
+    try:
+        with open(CALENDAR_FILE, "r") as f:
+            data = json.load(f)
+    except:
+        data = {"events": []}
+
+    data["events"].append({
+        "date": parsed_date,  # Use parsed_date, not date_str
+        "time": time_normalized,
+        "title": title
+    })
+
+    with open(CALENDAR_FILE, "w") as f:
+        json.dump(data, f, indent=2)
+    
+    tts.speak(f"Event scheduled: {title} on {parsed_date} at {time_normalized}")
+    return True, context

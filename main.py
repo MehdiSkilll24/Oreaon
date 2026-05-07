@@ -1,4 +1,4 @@
-import tts, listener, brain, executor, keyboard
+import tts, listener, brain, executor, keyboard, reminder_checker
 
 
 ACTION_HANDLERS = {
@@ -13,6 +13,11 @@ ACTION_HANDLERS = {
     "weather": executor.handle_weather,
     "sysinfo": executor.handle_sys,
     "window": executor.handle_window,
+    "spotify": executor.handle_spotify,
+    "reminder": reminder_checker.handle_reminder,
+    "calendar": executor.handle_calendar,
+    "schedule": executor.handle_schedule,
+
 }
 
 def handle_unknown(response, context):
