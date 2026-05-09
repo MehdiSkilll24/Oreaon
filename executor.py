@@ -10,7 +10,7 @@ from screen_brightness_control import get_brightness, set_brightness
 import subprocess, psutil
 import requests
 from datetime import datetime, timedelta
-import re, webbrowser
+import re, webbrowser, calendar, time
 import pygetwindow as gw
 
 
@@ -30,8 +30,10 @@ windows = gw.getAllWindows()
 word_to_num = {
     "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
     "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
-    "eleven": 11, "twelve": 12  
+    "eleven": 11, "twelve": 12 
 }
+
+month_dict = {i: calendar.month_name[i] for i in range(1,13)}
 
 if os.path.exists("targets.json"):
     with open("targets.json", "r") as f:
@@ -57,20 +59,24 @@ _browser = None
 
 def get_browser():
     global _playwright, _browser
-    if _browser is None:
+    if _playwright is None:
         _playwright = sync_playwright().start()
+    try:
         _browser = _playwright.chromium.connect_over_cdp("http://localhost:9222")
+    except Exception:
+        _browser = _playwright.chromium.launch(headless=False)
     return _browser
 
-def comparison(target_url):
-    url = TARGETS.get(target_url, "Nothing found!")
+def comparison(target_url, context):
+    print("Checking...")
+    url = TARGETS.get(target_url.lower(), "Nothing found!")
     if url == "Nothing found!":
         decision = str(input("Would you like to add this new command?"))
         while decision.lower() != 'yes' and decision.lower() != 'no':
             decision = str(input("Wrong, input. Would you like to add this new command?(yes/no)"))
 
         if decision == 'yes':
-            new_target = str((input("Enter the website name")))
+            new_target = str((input("Enter the website name"))).lower()
             new_url = str((input("Please, paste its URL")))
             TARGETS[new_target] = new_url
             with open("targets.json", "w") as f:
@@ -78,7 +84,7 @@ def comparison(target_url):
             
             return new_url
         
-        return None
+        return True, context
     return url 
 
 def open_url(url):
@@ -88,9 +94,8 @@ def open_url(url):
         page = context.new_page()
         page.goto(url)
     except Exception as e:
-        print(f"Page closed: {e}")
-
-
+        print(f"Page closed {e}")
+    
 def run_search(query):
     if not query:
         return
@@ -104,18 +109,28 @@ def play(search_url, context):
     print(f"play() called with: {search_url}, {context}")
     browser = get_browser()
     browser_context = browser.contexts[0]
-    page = browser_context.new_page()
-    page.goto(search_url)
+    target_page = None
+    for page in browser_context.pages:
+        if context in page.url:
+            target_page = page
+    
+    if target_page:
+        target_page.bring_to_front()
+        target_page.goto(search_url)
+    else:
+        target_page = browser_context.new_page()
+        target_page.goto(search_url)
     if context == "youtube":
         try:
-            page.wait_for_selector('a#video-title')
-            page.click('a#video-title')
+            target_page.wait_for_selector('a#video-title')
+            target_page.click('a#video-title')
         except Exception as e:
             print(f"Page closed: {e}")
-    elif context == "music" or context == "spotify":
+
+    elif context in["music", "spotify"]:
         try:
-            page.wait_for_selector('a[href*="/track/"]', state="visible")
-            page.locator('a[href*="/track/"]').first.click()
+            target_page.wait_for_selector('a[href*="/track/"]', state="visible")
+            target_page.locator('a[href*="/track/"]').first.click()
         
         except Exception as e:
             print(f"Page closed: {e}")
@@ -131,11 +146,11 @@ def parse_time_string(time_str):
 
 
     for word, num in word_to_num.items():
-        if f"{word} days" in time_lower or f"{word} day" in time_lower:
+        if f"{word} days" in time_lower or f"{word} day" in time_lower or f"{num} days" in time_lower or f"{num} day" in time_lower:
             return num * 24
 
     for word, num in word_to_num.items():
-        if word in time_lower:
+        if word in time_lower or str(num) in time_lower:
             return num
 
     match = re.search(r'(\d+)s*hours?', time_lower)
@@ -224,7 +239,7 @@ def find_files(filename, folder=None):
             search_order = [DC_DIR]
     
     matches = []
-    
+
     for directory in search_order:
         if not os.path.exists(directory):
             continue
@@ -247,7 +262,6 @@ def find_files(filename, folder=None):
             # Find the full filename (with extension) that matches
             original_file = all_items[files_without_ext.index(match)]
             full_path = os.path.join(directory, original_file)
-            os.startfile(full_path)
             folder_name = os.path.basename(directory)
             matches.append((full_path, original_file, folder_name))
         
@@ -255,6 +269,7 @@ def find_files(filename, folder=None):
         if matches and folder:
             break
     return matches
+
 
 
 def delete(filename, folder=None):
@@ -292,10 +307,33 @@ def delete(filename, folder=None):
         return None  # Caller will ask user to clarify
     
 def control(target, operation, value):
+    media_map = {
+    "pause": "Space",
+    "resume": "Space",
+    "next": "Control+ArrowRight",
+    "prev": "Control+ArrowLeft",
+    }
+    
+
+
+    browser = get_browser()
+    if not browser:
+        return
+    
+    for context in browser.contexts:
+        for page in context.pages:
+            if "spotify.com" in page.url or "youtube.com" in page.url:
+                command = media_map.get(target)
+                if command:
+                    page.keyboard.press(command)
+                    return
+    tts.speak("Couldn't find an active music tab") 
+
     if value:
         value = max(0, min(100, value))
     else:
         value = 15
+
     if target == "screenshot":
         pyautogui.screenshot(r"C:\Users\mehdi\Desktop\screenshot.png")
         tts.speak("I have taken a screenshot")
@@ -344,13 +382,26 @@ def handle_search(response, context):
 
 def handle_open(response, context):
     target = response.get("target")
-    then = response.get("then")
+    SYSTEM_APPS = {
+        "brave": '"C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe" --remote-debugging-port=9222', 
+        "steam": "steam://open/main",
+        "settings": "ms-settings:",
+    }
     context = target
-    url = comparison(target)
-    if url == None:
-        return False, context
-    if not then:
-        open_url(url)
+    if context in SYSTEM_APPS:
+        try:
+            subprocess.Popen(SYSTEM_APPS[target], shell=True)
+            time.sleep(2)
+            return True, context
+        except Exception as e:
+            tts.speak(f"I couldn't open the {target} application.")
+            return True, context
+    print("Calling comp")
+    url = comparison(target, context)
+    if url is None:
+        return True, context
+    
+    open_url(url)
     return True, context
 
 def handle_play(response, context):
@@ -576,5 +627,8 @@ def handle_schedule(response, context):
     with open(CALENDAR_FILE, "w") as f:
         json.dump(data, f, indent=2)
     
-    tts.speak(f"Event scheduled: {title} on {parsed_date} at {time_normalized}")
+    date_obj = datetime.strptime(parsed_date, "%Y-%m-%d")
+    day = date_obj.day
+    month = date_obj.month
+    tts.speak(f"Event scheduled: {title} on {month_dict[month]} {day} at {time_normalized}")
     return True, context
