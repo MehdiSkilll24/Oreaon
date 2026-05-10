@@ -63,8 +63,14 @@ def get_browser():
         _playwright = sync_playwright().start()
     try:
         _browser = _playwright.chromium.connect_over_cdp("http://localhost:9222")
+        print("local")
     except Exception:
-        _browser = _playwright.chromium.launch(headless=False)
+        print("Brave not open, launching it...")
+        subprocess.Popen(
+            r'"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe" --remote-debugging-port=9222',
+            shell=True
+        )
+        _browser = _playwright.chromium.connect_over_cdp("http://localhost:9222")
     return _browser
 
 def comparison(target_url, context):
@@ -84,14 +90,26 @@ def comparison(target_url, context):
             
             return new_url
         
-        return True, context
+        return None
+    
     return url 
 
 def open_url(url):
+    if not url:
+        print("None returned")
+        return
     browser = get_browser()
-    context = browser.contexts[0]
     try:
-        page = context.new_page()
+        browser_context = browser.contexts[0]
+    except Exception:
+        browser_context = browser.new_context()
+
+    for page in browser_context.pages:
+        if url in page.url or page.url in url:
+            page.bring_to_front()
+            return
+    try:
+        page = browser_context.new_page()
         page.goto(url)
     except Exception as e:
         print(f"Page closed {e}")
@@ -108,7 +126,11 @@ def run_search(query):
 def play(search_url, context):
     print(f"play() called with: {search_url}, {context}")
     browser = get_browser()
-    browser_context = browser.contexts[0]
+    try:
+        browser_context = browser.contexts[0]
+    except Exception:
+        browser_context = browser.new_context()
+
     target_page = None
     for b_context in browser.contexts:
         for page in b_context.pages:
@@ -385,7 +407,7 @@ def handle_search(response, context):
 def handle_open(response, context):
     target = response.get("target")
     SYSTEM_APPS = {
-        "brave": '"C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe" --remote-debugging-port=9222', 
+        "brave": r'"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe" --remote-debugging-port=9222', 
         "steam": "steam://open/main",
         "settings": "ms-settings:",
     }
