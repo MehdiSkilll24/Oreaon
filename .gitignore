@@ -1,0 +1,9 @@
+__pycache__/brain.cpython-312.pyc
+__pycache__/executor.cpython-312.pyc
+__pycache__/listener.cpython-312.pyc
+__pycache__/reminder_checker.cpython-312.pyc
+__pycache__/tts.cpython-312.pyc
+models/config.json
+models/model.bin
+models/tokenizer.json
+models/vocabulary.txt

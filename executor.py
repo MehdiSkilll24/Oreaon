@@ -110,10 +110,14 @@ def play(search_url, context):
     browser = get_browser()
     browser_context = browser.contexts[0]
     target_page = None
-    for page in browser_context.pages:
-        if context in page.url:
-            target_page = page
-    
+    for b_context in browser.contexts:
+        for page in b_context.pages:
+            if context.lower() in page.url.lower() or "spotify.com" in page.url:
+                target_page = page
+                break
+        if target_page:
+            break
+
     if target_page:
         target_page.bring_to_front()
         target_page.goto(search_url)
@@ -141,9 +145,7 @@ def parse_time_string(time_str):
     if not time_str:
         return 0
     
-
     time_lower = time_str.lower()
-
 
     for word, num in word_to_num.items():
         if f"{word} days" in time_lower or f"{word} day" in time_lower or f"{num} days" in time_lower or f"{num} day" in time_lower:

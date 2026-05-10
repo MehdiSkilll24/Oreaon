@@ -1,10 +1,9 @@
 from faster_whisper import WhisperModel
 import ollama
 import json, os, re
-import re, time
+import re
 
 audio_path = r"C:\Users\mehdi\Desktop\Pythonfiles\Projects\OREAON\command.wav"
-
 
 if os.path.exists("targets.json"):
     with open("targets.json", "r") as f:

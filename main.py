@@ -1,5 +1,35 @@
-import tts, listener, brain, executor, keyboard, reminder_checker
+import tts, listener, brain, executor, keyboard, reminder_checker, threading, ollama, os
+from faster_whisper import WhisperModel
 
+os.environ["HF_HUB_OFFLINE"] = "1"
+
+def load_whisper():
+    global whisper_model
+    whisper_model = WhisperModel(
+        r"C:\Users\mehdi\.cache\huggingface\hub\models--Systran--faster-whisper-tiny\snapshots\d90ca5fe260221311c53c58e660288d3deb8d356",
+        device="cuda",
+        compute_type="float16",
+    )
+    print("Whisper ready")
+
+def load_browser():
+    global browser
+    browser = executor.get_browser()
+    print("Browser ready")
+
+def load_ollama():
+    # Warm up Ollama with dummy request
+    ollama.chat(model="qwen3:1.7b", messages=[{"role": "user", "content": "hi"}])
+    print("Ollama ready")
+
+t1 = threading.Thread(target=load_whisper)
+t3 = threading.Thread(target=load_ollama)
+
+t1.start()
+t3.start()
+
+t1.join()
+t3.join()
 
 ACTION_HANDLERS = {
     "speak": executor.handle_speak,
@@ -34,11 +64,6 @@ def wait_for_input():
     return listener.rec()
 
 if __name__ == "__main__":
-
-    _ = brain.transcribe(brain.audio_path)
-    _ = brain.understand("test")
-
-
     tts.speak("Oreaon online, how can I help ?")
     flag = True
     context = None
