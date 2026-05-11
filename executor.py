@@ -10,8 +10,12 @@ from screen_brightness_control import get_brightness, set_brightness
 import subprocess, psutil
 import requests
 from datetime import datetime, timedelta
+import pythoncom
 import re, webbrowser, calendar, time
 import pygetwindow as gw
+
+from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
+from comtypes import CLSCTX_ALL
 
 
 DW_DIR = r"C:\Users\mehdi\Downloads"
@@ -32,6 +36,30 @@ word_to_num = {
     "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
     "eleven": 11, "twelve": 12 
 }
+
+def get_current_volume():
+    # Initialize COM for the current thread
+    pythoncom.CoInitialize()
+    try:
+        # Get the default speakers
+        devices = AudioUtilities.GetSpeakers()
+        
+        # Access the EndpointVolume attribute directly
+        # Modern pycaw versions map this to the correct COM interface for us
+        interface = devices.EndpointVolume
+        
+        # GetLevelScalar returns a float 0.0 to 1.0
+        current_level = interface.GetMasterVolumeLevelScalar()
+        
+        # Rouding since we're doing base 10 math for matching values (laptop <-> user)
+
+        return round(current_level * 100)
+    except Exception as e:
+        print(f"Volume detection failed: {e}")
+        return 0
+    finally:
+        # Uninitializing to prevent memory leaks in threads
+        pythoncom.CoUninitialize()
 
 month_dict = {i: calendar.month_name[i] for i in range(1,13)}
 
@@ -58,13 +86,16 @@ _playwright = None
 _browser = None
 
 def get_browser():
+
+    # connects to the local port. Has a fallback cmd launch in case of failure
+
     global _playwright, _browser
     if _playwright is None:
         _playwright = sync_playwright().start()
-    try:
+    try: #Primary attempt
         _browser = _playwright.chromium.connect_over_cdp("http://localhost:9222")
         print("local")
-    except Exception:
+    except Exception: #Fallback attempt (CMD to open the local port directly, then assigning it to a variable and launching it)
         print("Brave not open, launching it...")
         subprocess.Popen(
             r'"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe" --remote-debugging-port=9222',
@@ -74,9 +105,15 @@ def get_browser():
     return _browser
 
 def comparison(target_url, context):
+
+    # Compares the target to be opened with existent data
+
     print("Checking...")
     url = TARGETS.get(target_url.lower(), "Nothing found!")
-    if url == "Nothing found!":
+    if url == "Nothing found!": 
+        
+        # Option to add the new command (it didn't match anything in the dictionary)
+        
         decision = str(input("Would you like to add this new command?"))
         while decision.lower() != 'yes' and decision.lower() != 'no':
             decision = str(input("Wrong, input. Would you like to add this new command?(yes/no)"))
@@ -95,14 +132,23 @@ def comparison(target_url, context):
     return url 
 
 def open_url(url):
+
+    # Early exit if no url is found
+
     if not url:
         print("None returned")
         return
+    
     browser = get_browser()
+    
+    # We try to fetch an existing browser window, if nothing is found, we open a new one
+
     try:
         browser_context = browser.contexts[0]
     except Exception:
         browser_context = browser.new_context()
+
+    # If the page already exists, we execute the command within it ('for page..'), if not, we create a new tab for the target('try')
 
     for page in browser_context.pages:
         if url in page.url or page.url in url:
@@ -111,14 +157,20 @@ def open_url(url):
     try:
         page = browser_context.new_page()
         page.goto(url)
+
     except Exception as e:
         print(f"Page closed {e}")
     
 def run_search(query):
+
     if not query:
         return
+    
+
     encoded_query = urllib.parse.quote(query)
-    # Changed from google.com to search.brave.com
+    
+    # (Changed from google.com to search.brave.com) We anchor the user query to the default browser's query syntax: browser_query + <actual search query>
+    
     url = f"https://search.brave.com/search?q={encoded_query}"
     open_url(url)
     return url
@@ -126,10 +178,13 @@ def run_search(query):
 def play(search_url, context):
     print(f"play() called with: {search_url}, {context}")
     browser = get_browser()
+
     try:
         browser_context = browser.contexts[0]
     except Exception:
         browser_context = browser.new_context()
+
+    # If existent page -> Use that very page as the target, then apply the changes to it instead of creating a new page, else -> new page 
 
     target_page = None
     for b_context in browser.contexts:
@@ -146,12 +201,17 @@ def play(search_url, context):
     else:
         target_page = browser_context.new_page()
         target_page.goto(search_url)
+
+    # If it's youtube, use its appropriate button to select the first song
+
     if context == "youtube":
         try:
             target_page.wait_for_selector('a#video-title')
             target_page.click('a#video-title')
         except Exception as e:
             print(f"Page closed: {e}")
+
+    # Spotify; same logic
 
     elif context in["music", "spotify"]:
         try:
@@ -164,23 +224,32 @@ def play(search_url, context):
 
 def parse_time_string(time_str):
     """Extract hours from strings like '3 hours', 'in 2 hours', 'tomorrow', etc."""
+
     if not time_str:
         return 0
     
     time_lower = time_str.lower()
 
+    # if the input contains (day/ days), multiply the output (hours by 24) to reflect in (24 hours)
+
     for word, num in word_to_num.items():
         if f"{word} days" in time_lower or f"{word} day" in time_lower or f"{num} days" in time_lower or f"{num} day" in time_lower:
             return num * 24
+
+    # else, we return the num (hours) that the user mentioned
 
     for word, num in word_to_num.items():
         if word in time_lower or str(num) in time_lower:
             return num
 
+    # We search for the word hour(s), if found, we retun its value
+
     match = re.search(r'(\d+)s*hours?', time_lower)
     if match:
         return int(match.group(1))
     
+    # We search for the word day(s), if found, we retun its value *24 -> relative to hours
+
     match = re.search(r'(\d+)\s*days?', time_lower)
     if match:
         return int(match.group(1)) * 24
@@ -197,12 +266,16 @@ def parse_time_string(time_str):
 def get_weather(hours_ahead):
     """Fetch weather from Open-Meteo API."""
     url = "https://api.open-meteo.com/v1/forecast"
+
+    # Due to regional limitation, I hardcoded one city (More generic approach will be added ..)
+
     params = {
         "latitude": CHENGDU_LAT,
         "longitude": CHENGDU_LON,
         "hourly": "temperature_2m,weather_code,wind_speed_10m,precipitation",
         "timezone": "auto"
     }
+
     response = requests.get(url, params=params)
     data = response.json()
     
@@ -216,6 +289,7 @@ def get_weather(hours_ahead):
     wind = data['hourly']['wind_speed_10m']
     precip = data['hourly']['precipitation']
     
+    # Return a dictionary with temperature, wind speed and rain status for that hour index (from parse_time_string())
     return {
         "temp": temps[hour_index],
         "wind": wind[hour_index],
@@ -227,6 +301,7 @@ def format_weather_response(weather_data, hours_ahead):
     temp = weather_data["temp"]
     wind = weather_data["wind"]
     precip = weather_data["precipitation"]
+    
     
     time_str = f"in {hours_ahead} hours" if hours_ahead > 0 else "right now"
     
@@ -331,28 +406,13 @@ def delete(filename, folder=None):
         return None  # Caller will ask user to clarify
     
 def control(target, operation, value):
+
     media_map = {
     "pause": "Space",
     "resume": "Space",
     "next": "Control+ArrowRight",
     "prev": "Control+ArrowLeft",
     }
-    
-
-
-    browser = get_browser()
-    if not browser:
-        return
-    
-    for context in browser.contexts:
-        for page in context.pages:
-            if "spotify.com" in page.url or "youtube.com" in page.url:
-                command = media_map.get(target)
-                if command:
-                    page.keyboard.press(command)
-                    return
-    tts.speak("Couldn't find an active music tab") 
-
     if value:
         value = max(0, min(100, value))
     else:
@@ -374,8 +434,10 @@ def control(target, operation, value):
             final_brightness = get_brightness()[0] - value
             set_brightness(final_brightness)
         tts.speak(f"I have set the brightness to {final_brightness}")
+        return
 
     elif target == "volume":
+        original_value = value
         value = int((value / 100) * 65535)
         if operation == "set":
             subprocess.run([NIR_CMD_PATH, "setsysvolume", str(value)])
@@ -383,8 +445,23 @@ def control(target, operation, value):
             subprocess.run([NIR_CMD_PATH, "changesysvolume", str(value)])
         elif operation == "decrease":
             subprocess.run([NIR_CMD_PATH, "changesysvolume", str(-value)])
-        volume_pct = int(value/65535) * 100
-        tts.speak(f"I have set the volume to {volume_pct}")
+        current = get_current_volume()
+        tts.speak(f"I have set the volume to {current}")
+        return
+    
+    browser = get_browser()
+    if not browser:
+        return
+    
+    for context in browser.contexts:
+        for page in context.pages:
+            if "spotify.com" in page.url or "youtube.com" in page.url:
+                command = media_map.get(target)
+                if command:
+                    page.keyboard.press(command)
+                    return
+    tts.speak("Couldn't find an active music tab") 
+    return
 
 def handle_speak(response, context):
     target = response.get("target")
