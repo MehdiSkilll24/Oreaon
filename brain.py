@@ -106,6 +106,7 @@ Valid targets: any window name (chrome, vscode, calculator, etc.)
 
 OPTIONAL CHAINING:
 When user chains commands with "and", "then", or similar connectors, return nested actions.
+IMPORTANT: Everything after "and play" is ALWAYS the song/genre target, even if it's a single word, pronoun, or ambiguous term.
 
 Format:
 {{"action": "<first_action>", "target/genre": "<target>", "then": {{"action": "<second_action>", "target": "<target>"}}}}
@@ -118,6 +119,8 @@ Rules:
 5. The "then" action's target is everything after the connector word
 
 Examples: 
+"open spotify and play bohemian rhapsody" -> {{"action": "open", "target": "spotify", "then": {{"action": "play", "target": "bohemian rhapsody"}}}}
+"open spotify and play her" -> {{"action": "open", "target": "spotify", "then": {{"action": "play", "target": "her"}}}}
 "open spotify and play the next episode" -> {{"action": "open", "target": "spotify", "then": {{"action": "play", "target": "the next episode"}}}}
 "play rap music and show my calendar" -> {{"action": "spotify", "genre": "rap", "then": {{"action": "calendar"}}}}
 "show my system status and search for parmesan cheese" -> {{"action": "sysinfo", "target": null, "then": {{"action": "search", "target": "parmesan cheese"}}}}
@@ -133,32 +136,33 @@ def transcribe(path):
     return text
 
 def understand(text):
-    in_response = ollama.chat(
-    model= "qwen3:1.7b", 
-    messages=[
-    {"role": "system", "content": SYSTEM_PROMPT},
-    {"role": "user", "content": f"/no_think {text}"}
-    ],
-    options={
-        "temperature": 0,
-        "think": False,
-        "num_ctx": 2048
-        }
-    )
+    try:
+        # Use the official chat method with the speed-boosting parameters
+        in_response = ollama.chat(
+            model="qwen3:1.7b", 
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": text} # Removed /no_think; we handle this in 'options'
+            ],
+            # --- THE SPEED ENGINE ---
+            format="json",           # 1. Hardware-level JSON enforcement (No Regex needed!)
+            stream=False,            # 2. Return the whole object at once
+            keep_alive="24h",        # 3. Stay in VRAM so the next command is instant
+            options={
+                "temperature": 0,    # 4. Zero 'randomness' = faster logic
+                "num_ctx": 4096,     # 5. Ensure enough room for your big prompt
+                "think": False       # 6. Disable internal reasoning steps to save time
+            }
+        )
 
-    content = in_response.message.content
-    print(f"Raw content: {content}")
-    content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL).strip()
-    json_match = re.search(r'\{.*\}', content, re.DOTALL)
-    if json_match:
-        json_str = json_match.group(0)
-        try:
-            return json.loads(json_str)
-        except:
-            return {"action" : "unknown"}
-        
-    
-    return {"action" : "unknown"}
+        content = in_response.message.content
+        print(f"Raw content: {content}")
+
+        return json.loads(content)
+
+    except Exception as e:
+        print(f"Brain error{e}")
+        return {"action" : "unknown", "target": None}
 
 
 if __name__  == "__main__":

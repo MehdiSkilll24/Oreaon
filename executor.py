@@ -92,17 +92,32 @@ def get_browser():
     global _playwright, _browser
     if _playwright is None:
         _playwright = sync_playwright().start()
-    try: #Primary attempt
+
+    if _browser is not None and _browser.is_connected():
+        return _browser
+    
+    try: 
         _browser = _playwright.chromium.connect_over_cdp("http://localhost:9222")
-        print("local")
-    except Exception: #Fallback attempt (CMD to open the local port directly, then assigning it to a variable and launching it)
-        print("Brave not open, launching it...")
-        subprocess.Popen(
-            r'"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe" --remote-debugging-port=9222',
-            shell=True
-        )
-        _browser = _playwright.chromium.connect_over_cdp("http://localhost:9222")
-    return _browser
+        return _browser
+    except Exception:
+        print("No existing browser")
+        try:
+            subprocess.Popen(
+                r'"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe" --remote-debugging-port=9222',
+                shell=True
+            )
+            for i in range(10):
+                try:
+                    time.sleep(1)
+                    _browser = _playwright.chromium.connect_over_cdp("http://localhost:9222")
+                    print("Connected succesfully!")
+                    return _browser
+                except Exception:
+                    print(f"Waiting... (attempt {i+1}/10)")
+        except Exception:
+            print("Fallback...")
+            _browser = _playwright.chromium.launch(headless=False)
+            return _browser
 
 def comparison(target_url, context):
 
@@ -132,40 +147,46 @@ def comparison(target_url, context):
     return url 
 
 def open_url(url):
-
     # Early exit if no url is found
-
     if not url:
         print("None returned")
         return
     
+    target_page =None
     browser = get_browser()
+
+    for b_context in browser.contexts:
+        for p in b_context.pages:
+            try:
+                if url.lower() in p.url.lower():
+                    target_page = p
+                    break
+            except Exception:
+                continue
+        if target_page:
+            break
+
+    if target_page:
+        try:
+            if not target_page.is_closed():
+                target_page.bring_to_front()
+                if url not in target_page.url:
+                    target_page.goto(url, wait_until="commit")
+                return target_page
+        except Exception as e:
+            print(f"Page closed {e}")
+            target_page = None
+
+    else:
+        context = browser.contexts[0] if browser.contexts else browser.new_context()
+        target_page = context.new_page()
+        target_page.goto(url, wait_until="commit")
     
-    # We try to fetch an existing browser window, if nothing is found, we open a new one
-
-    try:
-        browser_context = browser.contexts[0]
-    except Exception:
-        browser_context = browser.new_context()
-
-    # If the page already exists, we execute the command within it ('for page..'), if not, we create a new tab for the target('try')
-
-    for page in browser_context.pages:
-        if url in page.url or page.url in url:
-            page.bring_to_front()
-            return
-    try:
-        page = browser_context.new_page()
-        page.goto(url)
-
-    except Exception as e:
-        print(f"Page closed {e}")
-    
+    return target_page
 def run_search(query):
 
     if not query:
         return
-    
 
     encoded_query = urllib.parse.quote(query)
     
@@ -178,48 +199,42 @@ def run_search(query):
 def play(search_url, context):
     print(f"play() called with: {search_url}, {context}")
     browser = get_browser()
-
-    try:
-        browser_context = browser.contexts[0]
-    except Exception:
-        browser_context = browser.new_context()
+    target_page = None
 
     # If existent page -> Use that very page as the target, then apply the changes to it instead of creating a new page, else -> new page 
-
-    target_page = None
     for b_context in browser.contexts:
-        for page in b_context.pages:
-            if context.lower() in page.url.lower() or "spotify.com" in page.url:
-                target_page = page
+        for p in b_context.pages:
+            if context.lower() in p.url.lower():
+                target_page = p
                 break
         if target_page:
             break
 
     if target_page:
         target_page.bring_to_front()
-        target_page.goto(search_url)
+        if search_url not in target_page.url:
+            target_page.goto(search_url, wait_until="commit")
     else:
+        browser_context = browser.contexts[0] if browser.contexts else browser.new_context()
         target_page = browser_context.new_page()
         target_page.goto(search_url)
 
     # If it's youtube, use its appropriate button to select the first song
 
-    if context == "youtube":
-        try:
-            target_page.wait_for_selector('a#video-title')
-            target_page.click('a#video-title')
-        except Exception as e:
-            print(f"Page closed: {e}")
+    try:
+        if context == "youtube":
+            target_page.wait_for_selector('a#video-title', timeout=5000)
+            target_page.click('a#video-title', force= True)
 
-    # Spotify; same logic
+    # Same logic for spotify
 
-    elif context in["music", "spotify"]:
-        try:
-            target_page.wait_for_selector('a[href*="/track/"]', state="visible")
-            target_page.locator('a[href*="/track/"]').first.click()
-        
-        except Exception as e:
-            print(f"Page closed: {e}")
+        elif context == "spotify":
+            target_page.wait_for_selector('a[href*="/track/"]', timeout=5000)
+            target_page.locator('a[href*="/track/"]').first.click(force=True)
+    
+    except Exception as e:
+        print(f"Failure {e}")
+
     return True, context
 
 def parse_time_string(time_str):
@@ -604,35 +619,45 @@ def handle_window(response, context):
 
 def handle_spotify(response, context):
     genre = response.get("genre")
-    
-    # Open Spotify
-
+    target_fragment = "spotify.com"
     browser = get_browser()
-    context_obj = browser.contexts[0]
-    page = context_obj.new_page()
-    page.goto("https://open.spotify.com")
 
-    # Search for genre playlist
+    target_page = None
 
-    search_box = page.locator('[data-testid="search-input"]')
-    search_box.fill(genre + " playlist")
-    page.keyboard.press("Enter")
+    for b_context in browser.contexts:
+        for p in b_context.pages:
+            if target_fragment in p.url:
+                target_page = p
+                break
+        if target_page: break
 
-    # Wait and click first result
-    page.wait_for_selector('a[href*="/playlist/"]', timeout=5000)
-    page.click('a[href*="/playlist/"]')
+        
+    if target_page:
+        target_page.bring_to_front()
+        # USE 'commit' to stop waiting for images/ads
+        target_page.goto("https://open.spotify.com/search", wait_until="commit")
 
-    # Wait for page to load
-    page.wait_for_load_state('networkidle')
+    else:
+        context_obj = browser.context[0] if browser.contexts else browser.new_context()
+        target_page = context_obj.new_page()
+        target_page.goto("https://open.spotify.com/search", wait_until="commit")
 
-    # Scroll to make play button visible
-    page.evaluate("window.scrollTo(0, 0)")
+    try:
+        search_box = target_page.wait_for_selector('[data-testid="search-input"]', state="attached", timeout=3000) 
+        search_box.fill(f"{genre} playlist", force=True)
+        target_page.keyboard.press("Enter")
 
-    # Try different selector for play button
+        playlist_link = target_page.wait_for_selector('a[href*="/playlist/"]', state="attached", timeout=3000)
+        playlist_link.click(force=True)
 
-    page.click('a[data-testid="internal-track-link"]')
+        track_link = target_page.wait_for_selector('a[data-testid="internal-track-link"]', state="attached", timeout=3000)
+        tts.speak(f"Playing {genre}")
 
-    tts.speak(f"Playing {genre} music")
+        track_link.click(force=True)
+    except Exception as e:
+        print(f"Track playing failed {e}")
+        target_page.wait_for_load_state("domcontentloaded")
+
     return True, context
 
 def handle_calendar(response, context):
