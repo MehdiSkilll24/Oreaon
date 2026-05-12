@@ -64,7 +64,7 @@ def wait_for_input():
     return listener.rec()
 
 if __name__ == "__main__":
-    tts.speak("Oreaon online, how can I help ?")
+    tts.speak("Ready")
     flag = True
     context = None
     while flag:

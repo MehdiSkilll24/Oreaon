@@ -37,6 +37,10 @@ word_to_num = {
     "eleven": 11, "twelve": 12 
 }
 
+def invalidate_browser():
+    global _browser
+    _browser = None
+
 def get_current_volume():
     # Initialize COM for the current thread
     pythoncom.CoInitialize()
@@ -97,11 +101,14 @@ def get_browser():
         return _browser
     
     try: 
+        print("Initial connect")
         _browser = _playwright.chromium.connect_over_cdp("http://localhost:9222")
         return _browser
+    
     except Exception:
         print("No existing browser")
         try:
+            subprocess.run("taskkill /f /im brave.exe", shell=True)
             subprocess.Popen(
                 r'"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe" --remote-debugging-port=9222',
                 shell=True
@@ -177,12 +184,39 @@ def open_url(url):
             print(f"Page closed {e}")
             target_page = None
 
-    else:
-        context = browser.contexts[0] if browser.contexts else browser.new_context()
-        target_page = context.new_page()
-        target_page.goto(url, wait_until="commit")
+    if not target_page:
+        try:
+            context = browser.contexts[0] if browser.contexts else browser.new_context()
+            target_page = context.new_page()
+            print("1st block")
+            target_page.goto(url, wait_until="commit")
+        except Exception as e:
+
+            """ (PS. "Context" is the term they use for one browser sessions (ie. one browser exe running) 
+            Here, we want to disable the global browser variable, and create a fresh one for the new open, 
+            we achieve that by: calling invalidate_browser() -> opening browser -> Null browser_context 
+            -> Loop all contexts and assign the one that works -> Use that one as the new context for the new opening.
+            -> IF failure -> We open a new browser context""" 
+
+            invalidate_browser() # nullify browser variable to open a fresh one 
+            browser = get_browser() # open through subprocess
+            browser_context = None # Nullify context to try looping
+            for ctx in browser.contexts: # Context looping
+                try:
+                    test_page = ctx.new_page()
+                    test_page.close() # that's just a test to see which context works
+                    browser_context = ctx # if the page opens and closes, context works, so we assign that one as the anchor
+                    break
+                except Exception:
+                    continue
+            if not browser_context: # If no anchor context was created, create a new context and execute from it
+                browser_context = browser.new_context()
+            target_page = browser_context.new_page()
+            print("2nd block")
+            target_page.goto(url, wait_until="commit")
     
     return target_page
+
 def run_search(query):
 
     if not query:
@@ -223,13 +257,13 @@ def play(search_url, context):
 
     try:
         if context == "youtube":
-            target_page.wait_for_selector('a#video-title', timeout=5000)
+            target_page.wait_for_selector('a#video-title', state="attached", timeout=10000)
             target_page.click('a#video-title', force= True)
 
     # Same logic for spotify
 
         elif context == "spotify":
-            target_page.wait_for_selector('a[href*="/track/"]', timeout=5000)
+            target_page.wait_for_selector('a[href*="/track/"]', timeout=10000)
             target_page.locator('a[href*="/track/"]').first.click(force=True)
     
     except Exception as e:
@@ -619,41 +653,22 @@ def handle_window(response, context):
 
 def handle_spotify(response, context):
     genre = response.get("genre")
-    target_fragment = "spotify.com"
-    browser = get_browser()
-
-    target_page = None
-
-    for b_context in browser.contexts:
-        for p in b_context.pages:
-            if target_fragment in p.url:
-                target_page = p
-                break
-        if target_page: break
-
-        
-    if target_page:
-        target_page.bring_to_front()
-        # USE 'commit' to stop waiting for images/ads
-        target_page.goto("https://open.spotify.com/search", wait_until="commit")
-
-    else:
-        context_obj = browser.context[0] if browser.contexts else browser.new_context()
-        target_page = context_obj.new_page()
-        target_page.goto("https://open.spotify.com/search", wait_until="commit")
+    url = TARGETS.get("spotify", "") 
+    target_page = open_url(url)
 
     try:
-        search_box = target_page.wait_for_selector('[data-testid="search-input"]', state="attached", timeout=3000) 
-        search_box.fill(f"{genre} playlist", force=True)
-        target_page.keyboard.press("Enter")
+        if target_page:
+            search_box = target_page.wait_for_selector('[data-testid="search-input"]', state="attached", timeout=15000) 
+            search_box.fill(f"{genre} playlist", force=True)
+            target_page.keyboard.press("Enter")
 
-        playlist_link = target_page.wait_for_selector('a[href*="/playlist/"]', state="attached", timeout=3000)
-        playlist_link.click(force=True)
+            playlist_link = target_page.wait_for_selector('a[href*="/playlist/"]', state="visible", timeout=15000)
+            playlist_link.click()
 
-        track_link = target_page.wait_for_selector('a[data-testid="internal-track-link"]', state="attached", timeout=3000)
-        tts.speak(f"Playing {genre}")
+            track_link = target_page.wait_for_selector('a[data-testid="internal-track-link"]', state="visible", timeout=15000)
+            tts.speak(f"Playing {genre}")
 
-        track_link.click(force=True)
+            track_link.click(force=True)
     except Exception as e:
         print(f"Track playing failed {e}")
         target_page.wait_for_load_state("domcontentloaded")

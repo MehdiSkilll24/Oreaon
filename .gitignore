@@ -7,3 +7,5 @@ models/config.json
 models/model.bin
 models/tokenizer.json
 models/vocabulary.txt
+/__pycache__
+*.wav
