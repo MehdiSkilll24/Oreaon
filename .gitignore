@@ -9,3 +9,8 @@ models/tokenizer.json
 models/vocabulary.txt
 /__pycache__
 *.wav
+command.wav
+test.wav
+temp_speech.txt
+*.txt
+*.wav

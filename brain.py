@@ -139,10 +139,10 @@ def understand(text):
     try:
         # Use the official chat method with the speed-boosting parameters
         in_response = ollama.chat(
-            model="qwen3:1.7b", 
+            model="qwen2.5:1.5b", 
             messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": text} # Removed /no_think; we handle this in 'options'
+                {"role": "system", "content": "/no_think\n" + SYSTEM_PROMPT},
+                {"role": "user", "content": text + " /no_think"} 
             ],
             # --- THE SPEED ENGINE ---
             format="json",           # 1. Hardware-level JSON enforcement (No Regex needed!)
@@ -156,8 +156,7 @@ def understand(text):
         )
 
         content = in_response.message.content
-        print(f"Raw content: {content}")
-
+        print(in_response.message.thinking)        
         return json.loads(content)
 
     except Exception as e:
