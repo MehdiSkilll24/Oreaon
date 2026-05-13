@@ -14,3 +14,6 @@ test.wav
 temp_speech.txt
 *.txt
 *.wav
+/__pycache__
+*.wav
+*.txt

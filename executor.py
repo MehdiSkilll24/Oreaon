@@ -664,11 +664,16 @@ def handle_spotify(response, context):
 
             playlist_link = target_page.wait_for_selector('a[href*="/playlist/"]', state="visible", timeout=15000)
             playlist_link.click()
+            
+            pause_btn = target_page.query_selector('button[aria-label="Pause"]')
+            if pause_btn:
+                pause_btn.click()
+                target_page.wait_for_timeout(300)
 
-            track_link = target_page.wait_for_selector('a[data-testid="internal-track-link"]', state="visible", timeout=15000)
+            track_link = target_page.wait_for_selector('a[data-testid="internal-track-link"]', state="visible", timeout=5000)
             tts.speak(f"Playing {genre}")
+            track_link.dblclick(force=True)
 
-            track_link.click(force=True)
     except Exception as e:
         print(f"Track playing failed {e}")
         target_page.wait_for_load_state("domcontentloaded")
