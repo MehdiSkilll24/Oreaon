@@ -37,6 +37,10 @@ word_to_num = {
     "eleven": 11, "twelve": 12 
 }
 
+def extract_domain(url):
+    return urllib.parse.urlparse(url).netloc._replace("www.", "")
+
+
 def invalidate_browser():
     global _browser
     _browser = None
@@ -91,6 +95,17 @@ _browser = None
 
 def get_browser():
 
+
+    """
+    Connects to an existing Brave instance via CDP, or launches a fresh one if none is running.
+    Handles two failure modes:
+    - No browser running: launches Brave via subprocess and retries connection up to 10 times
+    - Stale browser reference: invalidate_browser() resets the global, forcing a full reconnect on next call
+    ( this fixes a bug in open_url() )
+    """
+
+
+
     # connects to the local port. Has a fallback cmd launch in case of failure
 
     global _playwright, _browser
@@ -101,11 +116,17 @@ def get_browser():
         return _browser
     
     try: 
+
+        # Try to connect
+
         print("Initial connect")
         _browser = _playwright.chromium.connect_over_cdp("http://localhost:9222")
         return _browser
     
     except Exception:
+
+        # If failure, close any brave session and launch a fresh brave.exe script 
+
         print("No existing browser")
         try:
             subprocess.run("taskkill /f /im brave.exe", shell=True)
@@ -115,6 +136,9 @@ def get_browser():
             )
             for i in range(10):
                 try:
+
+                    # Try to connect it to the port (10 attempts in case the port is faster than the launch during the first times)
+
                     time.sleep(1)
                     _browser = _playwright.chromium.connect_over_cdp("http://localhost:9222")
                     print("Connected succesfully!")
@@ -122,6 +146,9 @@ def get_browser():
                 except Exception:
                     print(f"Waiting... (attempt {i+1}/10)")
         except Exception:
+
+            # If nothing workds, we open a different google page (empty session)
+
             print("Fallback...")
             _browser = _playwright.chromium.launch(headless=False)
             return _browser
@@ -165,7 +192,8 @@ def open_url(url):
     for b_context in browser.contexts:
         for p in b_context.pages:
             try:
-                if url.lower() in p.url.lower():
+                if extract_domain(url) in extract_domain(p.url):
+                    print("found!")
                     target_page = p
                     break
             except Exception:
@@ -177,7 +205,7 @@ def open_url(url):
         try:
             if not target_page.is_closed():
                 target_page.bring_to_front()
-                if url not in target_page.url:
+                if extract_domain(url) not in extract_domain(target_page.url):
                     target_page.goto(url, wait_until="commit")
                 return target_page
         except Exception as e:
@@ -185,6 +213,7 @@ def open_url(url):
             target_page = None
 
     if not target_page:
+        print("Not found")
         try:
             context = browser.contexts[0] if browser.contexts else browser.new_context()
             target_page = context.new_page()
@@ -263,7 +292,7 @@ def play(search_url, context):
     # Same logic for spotify
 
         elif context == "spotify":
-            target_page.wait_for_selector('a[href*="/track/"]', timeout=10000)
+            target_page.wait_for_selector('a[href*="/track/"]', timeout=15000)
             target_page.locator('a[href*="/track/"]').first.click(force=True)
     
     except Exception as e:
@@ -416,6 +445,7 @@ def find_files(filename, folder=None):
         # If folder was specified and we found matches, stop searching
         if matches and folder:
             break
+
     return matches
 
 
@@ -456,12 +486,17 @@ def delete(filename, folder=None):
     
 def control(target, operation, value):
 
+    # Set a dictionary for each command (for media control)
+
     media_map = {
     "pause": "Space",
     "resume": "Space",
     "next": "Control+ArrowRight",
     "prev": "Control+ArrowLeft",
     }
+
+    # For brightness and volume, if no value specified, default to an adjustment of +-15 
+
     if value:
         value = max(0, min(100, value))
     else:
@@ -498,13 +533,17 @@ def control(target, operation, value):
         tts.speak(f"I have set the volume to {current}")
         return
     
+    # If none of the above, it must be a media control command. 
+    # Get browser -> Extract command -> assign to variable -> feed to keyboard method 
+
     browser = get_browser()
     if not browser:
+        tts.speak("No browser found")
         return
     
     for context in browser.contexts:
         for page in context.pages:
-            if "spotify.com" in page.url or "youtube.com" in page.url:
+            if extract_domain(target) in extract_domain(page.url):
                 command = media_map.get(target)
                 if command:
                     page.keyboard.press(command)

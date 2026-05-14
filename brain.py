@@ -50,7 +50,7 @@ RULES:
 - "schedule" → add event; extract title, date, time
 - "unknown" → absurd or corrupted input
 
-HAINING: If user says "and"/"then", return nested actions (max 2):
+HAINING: If user says "and"|"then", return nested actions (max 2):
 {{"action": "<first>", ..., "then": {{"action": "<second>", ...}}}}
 
 IMPORTANT: Everything after "and play" is ALWAYS the song/genre target.
@@ -58,7 +58,7 @@ IMPORTANT: Everything after "and play" is ALWAYS the song/genre target.
 Examples:
 "open spotify and play bohemian rhapsody" → {{"action": "open", "target": "spotify", "then": {{"action": "play", "target": "bohemian rhapsody"}}}}
 "open spotify and play her" → {{"action": "open", "target": "spotify", "then": {{"action": "play", "target": "her"}}}}
-"open youtube and play her" → {{"action": "open", "target": "youtube", "then": {{"action": "play", "target": "her"}}}}
+"open youtube and play trinity titoli" → {{"action": "open", "target": "youtube", "then": {{"action": "play", "target": "trinity titoli"}}}}
 "play rap music and show my calendar" → {{"action": "spotify", "genre": "rap", "then": {{"action": "calendar"}}}}
 "pause and open youtube" → {{"action": "control", "target": "pause", "operation": "execute", "value": null, "then": {{"action": "open", "target": "youtube"}}}}
 "set brightness to 50 and play chill music" → {{"action": "control", "target": "brightness", "operation": "set", "value": 50, "then": {{"action": "spotify", "genre": "chill"}}}}
