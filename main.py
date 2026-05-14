@@ -71,6 +71,11 @@ if __name__ == "__main__":
         path = wait_for_input()
         text = brain.transcribe(path).lower()
         print(text)
+        
+        if not text:
+            tts.speak("Could you repeat that?")
+            continue
+
         response = brain.understand(text)
         action = response.get("action")
         

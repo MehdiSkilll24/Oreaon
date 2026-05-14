@@ -38,7 +38,7 @@ word_to_num = {
 }
 
 def extract_domain(url):
-    return urllib.parse.urlparse(url).netloc._replace("www.", "")
+    return urllib.parse.urlparse(url).netloc.replace("www.", "")
 
 
 def invalidate_browser():
@@ -192,6 +192,11 @@ def open_url(url):
     for b_context in browser.contexts:
         for p in b_context.pages:
             try:
+                print(f"url domain: {extract_domain(url)} | page domain: {extract_domain(p.url)}")
+            except Exception as e:
+                print(f"{e}")
+            try:
+                print(f"url domain: {extract_domain(url)} | page domain: {extract_domain(p.url)}")
                 if extract_domain(url) in extract_domain(p.url):
                     print("found!")
                     target_page = p
@@ -543,7 +548,7 @@ def control(target, operation, value):
     
     for context in browser.contexts:
         for page in context.pages:
-            if extract_domain(target) in extract_domain(page.url):
+            if any(extract_domain(page.url) in d for d in ["spotify.com", "youtube.com"]):
                 command = media_map.get(target)
                 if command:
                     page.keyboard.press(command)

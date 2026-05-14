@@ -68,8 +68,12 @@ model = WhisperModel(r"C:\Users\mehdi\Desktop\Pythonfiles\Projects\Oreaon\models
 
 def transcribe(path):
     segments, _ = model.transcribe(path)
-    text = " ".join([s.text for s in segments]).strip(".")
-    return text
+    results = []
+    for s in segments:
+        if s.no_speech_prob < 0.5 and s.avg_logprob > -1.0:
+            results.append(s.text)
+    text = " ".join(results).strip(".")
+    return text if text else None
 
 def understand(text):
     try:
