@@ -180,31 +180,25 @@ def comparison(target_url, context):
     
     return url 
 
-def open_url(url):
+def open_url(url, new= False):
     # Early exit if no url is found
     if not url:
         print("None returned")
         return
-    
     target_page =None
     browser = get_browser()
-
-    for b_context in browser.contexts:
-        for p in b_context.pages:
-            try:
-                print(f"url domain: {extract_domain(url)} | page domain: {extract_domain(p.url)}")
-            except Exception as e:
-                print(f"{e}")
-            try:
-                print(f"url domain: {extract_domain(url)} | page domain: {extract_domain(p.url)}")
-                if extract_domain(url) in extract_domain(p.url):
-                    print("found!")
-                    target_page = p
-                    break
-            except Exception:
-                continue
-        if target_page:
-            break
+    if not new:
+        for b_context in browser.contexts:
+            for p in b_context.pages:
+                try:
+                    if extract_domain(url) in extract_domain(p.url):
+                        print("found!")
+                        target_page = p
+                        break
+                except Exception:
+                    continue
+            if target_page:
+                break
 
     if target_page:
         try:
@@ -594,8 +588,9 @@ def handle_open(response, context):
     url = comparison(target, context)
     if url is None:
         return True, context
-    
-    open_url(url)
+    new = response.get("new")
+    print(new)
+    open_url(url, new)
     return True, context
 
 def handle_play(response, context):

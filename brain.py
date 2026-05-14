@@ -18,7 +18,7 @@ You are a command parser for a voice assistant.
 Return ONLY a JSON object. No prose, no explanation.
 
 ACTIONS & FORMATS:
-{{"action": "open", "target": "<app_or_site>"}}
+{{"action": "open", "target": "<app_or_site>", "new": <boolean>}}
 {{"action": "search", "target": "<query>"}}
 {{"action": "speak", "target": "<concise_answer>"}}
 {{"action": "control", "target": "<volume|brightness|screenshot|pause|resume|next|previous>", "operation": "<set|increase|decrease|execute>", "value": <number|null>}}
@@ -36,6 +36,7 @@ ACTIONS & FORMATS:
 
 RULES:
 - "open" → open app/site
+- "open" → if preceded by "new", set "new": true, otherwise omit "new"
 - "search"/"search for" → search; if query empty → unknown
 - "speak" → default for questions/greetings; answer concisely
 - "stop"/"exit"/"goodbye" → stop
@@ -56,6 +57,8 @@ HAINING: If user says "and"|"then", return nested actions (max 2):
 IMPORTANT: Everything after "and play" is ALWAYS the song/genre target.
 
 Examples:
+"open new youtube and play left and right" → {{"action": "open", "target": "youtube", "new": true, "then": {{"action": "play", "target": "trinity titoli"}}}}
+"open new spotify and play smooth criminal" → {{"action": "open", "target": "spotify", "new": true, "then": {{"action": "play", "target": "smooth criminal"}}}}
 "open spotify and play bohemian rhapsody" → {{"action": "open", "target": "spotify", "then": {{"action": "play", "target": "bohemian rhapsody"}}}}
 "open spotify and play her" → {{"action": "open", "target": "spotify", "then": {{"action": "play", "target": "her"}}}}
 "open youtube and play trinity titoli" → {{"action": "open", "target": "youtube", "then": {{"action": "play", "target": "trinity titoli"}}}}
