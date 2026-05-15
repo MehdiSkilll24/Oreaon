@@ -1,7 +1,8 @@
-import tts, listener, brain, executor, keyboard, reminder_checker, threading, ollama, os
+import tts, listener, brain, executor, keyboard, reminder_checker, threading, ollama, os, json
 from faster_whisper import WhisperModel
 
 os.environ["HF_HUB_OFFLINE"] = "1"
+
 
 def load_whisper():
     global whisper_model
@@ -69,16 +70,27 @@ if __name__ == "__main__":
     context = None
     while flag:
         path = wait_for_input()
-        text = brain.transcribe(path).lower()
-        print(text)
         
+        try:
+            text = brain.transcribe(path).lower()
+        except Exception:
+            tts.speak("Could you repeat that?")
+            continue
         if not text:
             tts.speak("Could you repeat that?")
             continue
 
+        print(text)
+
         response = brain.understand(text)
         action = response.get("action")
-        
+
+        if action == "speak":
+            answer = brain.converse(text)
+            print(answer)
+            tts.speak(answer)
+            continue
+
         print(response)
         flag, context = dispatch(action, response, context)
         if response.get("then"):

@@ -1,17 +1,12 @@
 from faster_whisper import WhisperModel
 import ollama
-import json, os, re
-import re
+import json, os
 
 audio_path = r"C:\Users\mehdi\Desktop\Pythonfiles\Projects\OREAON\command.wav"
 
-if os.path.exists("targets.json"):
-    with open("targets.json", "r") as f:
-        TARGETS = json.load(f)
-else:
-    TARGETS = {}
+counter = 0
 
-valid_targets = ", ".join(TARGETS.keys())
+COUNTER_LIMIT = 15
 
 SYSTEM_PROMPT = f"""
 You are a command parser for a voice assistant.
@@ -37,8 +32,8 @@ ACTIONS & FORMATS:
 RULES:
 - "open" → open app/site
 - "open" → if preceded by "new", set "new": true, otherwise omit "new"
-- "search"/"search for" → search; if query empty → unknown
-- "speak" → default for questions/greetings; answer concisely
+- "speak" → for opinion questions, comparisons, advice, casual conversation, and general knowledge Claude can answer directly
+- "search" → ONLY for specific facts, news, current events, or lookups requiring real-time data
 - "stop"/"exit"/"goodbye" → stop
 - "delete"/"remove" → delete; "find"/"look for" → find
 - "control" → set/increase/decrease/pause/resume/next/previous/screenshot
@@ -65,9 +60,37 @@ Examples:
 "play rap music and show my calendar" → {{"action": "spotify", "genre": "rap", "then": {{"action": "calendar"}}}}
 "pause and open youtube" → {{"action": "control", "target": "pause", "operation": "execute", "value": null, "then": {{"action": "open", "target": "youtube"}}}}
 "set brightness to 50 and play chill music" → {{"action": "control", "target": "brightness", "operation": "set", "value": 50, "then": {{"action": "spotify", "genre": "chill"}}}}
+"should I eat apples or bananas?" → {{"action": "speak", "target": "Both are healthy. Bananas have more carbs and potassium, apples have more fiber. Depends on your goal."}}
+"""
+SPEECH_PROMPT = """
+You are Oreaon, a smart and concise voice assistant.
+Answer the user's question or statement directly and naturally.
+Keep responses moderate — 2 to 4 sentences max. No markdown, no headers.
+You are speaking out loud, so write like you talk.
+You can include edge cases in anything you say if that's necessary.
 """
 
+if os.path.exists("conversation_history.json"):
+    with open("conversation_history.json", "r") as f:
+        try:
+            conversation_history = json.load(f)
+        except json.JSONDecodeError:
+            conversation_history = []
+else:
+    conversation_history = []
+
+if os.path.exists("targets.json"):
+    with open("targets.json", "r") as f:
+        TARGETS = json.load(f)
+else:
+    TARGETS = {}
+
+valid_targets = ", ".join(TARGETS.keys())
+
+
 model = WhisperModel(r"C:\Users\mehdi\Desktop\Pythonfiles\Projects\Oreaon\models", device="cuda", compute_type="float16")
+
+
 
 def transcribe(path):
     segments, _ = model.transcribe(path)
@@ -78,6 +101,59 @@ def transcribe(path):
     text = " ".join(results).strip(".")
     return text if text else None
 
+def summarizer(history):
+    global conversation_history
+    in_response = ollama.chat(
+        model="qwen2.5:1.5b", 
+        messages=[
+            {"role": "system", "content": f"Summarize this conversation in 3-5 sentences, preserving the key points and context: {json.dumps(history)}"}
+        ],
+        stream=False, 
+        options={
+            "temperature": 0.7, 
+            "num_ctx": 4096,  
+            "think": False
+        }
+    )
+    summary = in_response.message.content
+    conversation_history = [{"role": "assistant", "content": summary}]
+    with open ("conversation_history.json", "w") as f:
+        json.dump(conversation_history, f)
+
+    return 
+
+
+def converse(text):
+    global counter
+
+    in_response = ollama.chat(
+        model="qwen2.5:1.5b", 
+        messages=[
+            {"role": "system", "content": "/no_think\n" + SPEECH_PROMPT},
+            *conversation_history,
+            {"role": "user", "content": text + " /no_think"} 
+        ],
+        stream=False, 
+        options={
+            "temperature": 0.7, 
+            "num_ctx": 4096,  
+            "think": False    
+        }
+    )
+    content = in_response.message.content
+    conversation_history.append({"role": "user", "content": text})
+    conversation_history.append({"role": "assistant", "content": content})
+    with open("conversation_history.json", "w") as f:
+        json.dump(conversation_history, f)
+
+    counter += 1
+    if counter == COUNTER_LIMIT:
+        print("Summarizing convo...")
+        summarizer(conversation_history)
+        counter = 0
+    return content
+
+
 def understand(text):
     try:
         # Use the official chat method with the speed-boosting parameters
@@ -87,6 +163,7 @@ def understand(text):
                 {"role": "system", "content": "/no_think\n" + SYSTEM_PROMPT},
                 {"role": "user", "content": text + " /no_think"} 
             ],
+            
             # --- THE SPEED ENGINE ---
             format="json",           # 1. Hardware-level JSON enforcement (No Regex needed!)
             stream=False,            # 2. Return the whole object at once
