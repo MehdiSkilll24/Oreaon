@@ -1,4 +1,4 @@
-import tts, listener, brain, executor, keyboard, reminder_checker, threading, ollama, os, json
+import tts, listener, brain, executor, state, keyboard, reminder_checker, threading, ollama, os, json
 from faster_whisper import WhisperModel
 
 os.environ["HF_HUB_OFFLINE"] = "1"
@@ -20,7 +20,7 @@ def load_browser():
 
 def load_ollama():
     # Warm up Ollama with dummy request
-    ollama.chat(model="qwen3:1.7b", messages=[{"role": "user", "content": "hi"}])
+    ollama.chat(model="qwen2.5:1.5b", messages=[{"role": "user", "content": "hi"}])
     print("Ollama ready")
 
 t1 = threading.Thread(target=load_whisper)
@@ -62,18 +62,23 @@ def dispatch(action, response, context):
 
 def wait_for_input():
     keyboard.wait('f8')
+    state.current_state = "listening"
     return listener.rec()
 
 if __name__ == "__main__":
+    state.current_state = "speaking"
     tts.speak("Ready")
     flag = True
     context = None
     while flag:
+        state.current_state = "idle"
         path = wait_for_input()
         
         try:
             text = brain.transcribe(path).lower()
+            state.current_state = "thinking"
         except Exception:
+            state.current_state = "speaking"
             tts.speak("Could you repeat that?")
             continue
         if not text:
@@ -88,6 +93,7 @@ if __name__ == "__main__":
         if action == "speak":
             answer = brain.converse(text)
             print(answer)
+            state.current_state = "speaking"
             tts.speak(answer)
             continue
 
