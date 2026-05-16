@@ -1,8 +1,7 @@
-import tts, listener, brain, executor, state, keyboard, reminder_checker, threading, ollama, os, json
+import tts, listener, brain, executor, state, ui, keyboard, reminder_checker, threading, ollama, os
 from faster_whisper import WhisperModel
 
 os.environ["HF_HUB_OFFLINE"] = "1"
-
 
 def load_whisper():
     global whisper_model
@@ -22,6 +21,10 @@ def load_ollama():
     # Warm up Ollama with dummy request
     ollama.chat(model="qwen2.5:1.5b", messages=[{"role": "user", "content": "hi"}])
     print("Ollama ready")
+
+ui_thread = threading.Thread(target=ui.run_ui, daemon=True)
+ui_thread.start()
+print("Ui on")
 
 t1 = threading.Thread(target=load_whisper)
 t3 = threading.Thread(target=load_ollama)

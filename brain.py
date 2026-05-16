@@ -32,8 +32,8 @@ ACTIONS & FORMATS:
 RULES:
 - "open" → open app/site
 - "open" → if preceded by "new", set "new": true, otherwise omit "new"
-- "speak" → for opinion questions, comparisons, advice, casual conversation, and general knowledge Claude can answer directly
-- "search" → ONLY for specific facts, news, current events, or lookups requiring real-time data
+- "speak" → for opinion questions, comparisons, advice, casual conversation. Anything that fails all other features defaults to speech.
+- "search" → ONLY for specific facts, news, current events, or lookups requiring real-time data.
 - "stop"/"exit"/"goodbye" → stop
 - "delete"/"remove" → delete; "find"/"look for" → find
 - "control" → set/increase/decrease/pause/resume/next/previous/screenshot
@@ -46,19 +46,19 @@ RULES:
 - "schedule" → add event; extract title, date, time
 - "unknown" → absurd or corrupted input
 
-HAINING: If user says "and"|"then", return nested actions (max 2):
+HAINING: If user says "and" or "then", return nested actions (max 2):
 {{"action": "<first>", ..., "then": {{"action": "<second>", ...}}}}
-
-IMPORTANT: Everything after "and play" is ALWAYS the song/genre target.
-
+IMPORTANT: Everything after "and play" is ALWAYS a literal song/video title, even if it resembles a command, direction, or common word. Never interpret it as anything other than a title.
 Examples:
 "open new youtube and play left and right" → {{"action": "open", "target": "youtube", "new": true, "then": {{"action": "play", "target": "trinity titoli"}}}}
 "open new spotify and play smooth criminal" → {{"action": "open", "target": "spotify", "new": true, "then": {{"action": "play", "target": "smooth criminal"}}}}
-"open spotify and play bohemian rhapsody" → {{"action": "open", "target": "spotify", "then": {{"action": "play", "target": "bohemian rhapsody"}}}}
-"open spotify and play her" → {{"action": "open", "target": "spotify", "then": {{"action": "play", "target": "her"}}}}
-"open youtube and play trinity titoli" → {{"action": "open", "target": "youtube", "then": {{"action": "play", "target": "trinity titoli"}}}}
-"play rap music and show my calendar" → {{"action": "spotify", "genre": "rap", "then": {{"action": "calendar"}}}}
-"pause and open youtube" → {{"action": "control", "target": "pause", "operation": "execute", "value": null, "then": {{"action": "open", "target": "youtube"}}}}
+"open spotify and play bohemian rhapsody" → {{"action": "open", "target": "spotify", "new": false, "then": {{"action": "play", "target": "bohemian rhapsody"}}}}
+"open spotify and play her" → {{"action": "open", "target": "spotify", "new": false, "then": {{"action": "play", "target": "her"}}}}
+"open youtube and play no signal" → {{"action": "open", "target": "youtube", "new": false, "then": {{"action": "play", "target": "no signal"}}}}
+"open youtube and play left and right" → {{"action": "open", "target": "youtube", "new": false, "then": {{"action": "play", "target": "left and right"}}}}
+"open youtube and play trinity titoli" → {{"action": "open", "target": "youtube", "new": false, "then": {{"action": "play", "target": "trinity titoli"}}}}
+"play rap music and show my calendar" → {{"action": "spotify", "genre": "rap", "new": false, "then": {{"action": "calendar"}}}}
+"pause and open youtube" → {{"action": "control", "target": "pause", "operation": "execute", "value": null, "then": {{"action": "open", "target": "youtube", "new": false,}}}}
 "set brightness to 50 and play chill music" → {{"action": "control", "target": "brightness", "operation": "set", "value": 50, "then": {{"action": "spotify", "genre": "chill"}}}}
 "should I eat apples or bananas?" → {{"action": "speak", "target": "Both are healthy. Bananas have more carbs and potassium, apples have more fiber. Depends on your goal."}}
 """
@@ -68,6 +68,9 @@ Answer the user's question or statement directly and naturally.
 Keep responses moderate — 2 to 4 sentences max. No markdown, no headers.
 You are speaking out loud, so write like you talk.
 You can include edge cases in anything you say if that's necessary.
+You are allowed to have opinions on topics and can justify those opinions however you see fit.
+You have to answer questions no matter how unrelated they are. If the user talks about apples and bananas,
+then jumps to a different topic, you must adapt accordingly.
 """
 
 if os.path.exists("conversation_history.json"):
@@ -106,7 +109,7 @@ def summarizer(history):
     in_response = ollama.chat(
         model="qwen2.5:1.5b", 
         messages=[
-            {"role": "system", "content": f"Summarize this conversation in 3-5 sentences, preserving the key points and context: {json.dumps(history)}"}
+            {"role": "system", "content": f"Summarize this conversation in 3-5 sentences,preserving the key points and context: {json.dumps(history)}"}
         ],
         stream=False, 
         options={

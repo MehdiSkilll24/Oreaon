@@ -17,3 +17,5 @@ temp_speech.txt
 /__pycache__
 *.wav
 *.txt
+*.wav
+*.pyc

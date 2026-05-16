@@ -204,7 +204,9 @@ def open_url(url, new= False):
         try:
             if not target_page.is_closed():
                 target_page.bring_to_front()
-                if extract_domain(url) not in extract_domain(target_page.url):
+                if "search" in url and url!=target_page.url :
+                    target_page.goto(url, wait_until="commit")
+                elif extract_domain(url) not in extract_domain(target_page.url):
                     target_page.goto(url, wait_until="commit")
                 return target_page
         except Exception as e:
@@ -491,7 +493,7 @@ def control(target, operation, value):
     "pause": "Space",
     "resume": "Space",
     "next": "Control+ArrowRight",
-    "prev": "Control+ArrowLeft",
+    "previous": "Control+ArrowLeft",
     }
 
     # For brightness and volume, if no value specified, default to an adjustment of +-15 
@@ -542,7 +544,7 @@ def control(target, operation, value):
     
     for context in browser.contexts:
         for page in context.pages:
-            if any(extract_domain(page.url) in d for d in ["spotify.com", "youtube.com"]):
+            if any(d in extract_domain(page.url) for d in ["spotify.com", "youtube.com"]):
                 command = media_map.get(target)
                 if command:
                     page.keyboard.press(command)
@@ -582,7 +584,7 @@ def handle_open(response, context):
             time.sleep(2)
             return True, context
         except Exception as e:
-            tts.speak(f"I couldn't open the {target} application.")
+            tts.speak(f"I couldn't open the {target} application: {e}")
             return True, context
     print("Calling comp")
     url = comparison(target, context)
@@ -708,8 +710,13 @@ def handle_spotify(response, context):
             if pause_btn:
                 pause_btn.click()
                 target_page.wait_for_timeout(300)
-
-            track_link = target_page.wait_for_selector('a[data-testid="internal-track-link"]', state="visible", timeout=5000)
+            for i in range(5):
+                try:
+                    track_link = target_page.wait_for_selector('a[data-testid="internal-track-link"]', state="visible", timeout=5000)
+                    time.sleep(1)
+                except Exception as e:
+                    print(e)
+                    return
             tts.speak(f"Playing {genre}")
             track_link.dblclick(force=True)
 
