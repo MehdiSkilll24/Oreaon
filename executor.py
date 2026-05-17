@@ -13,6 +13,12 @@ from datetime import datetime, timedelta
 import pythoncom
 import re, webbrowser, calendar, time
 import pygetwindow as gw
+import smtplib
+import imaplib
+import email
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+
 
 from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
 from comtypes import CLSCTX_ALL
@@ -27,6 +33,8 @@ HTML_FILE = r"C:\Users\mehdi\Desktop\Pythonfiles\Projects\OREAON\calendar.html"
 
 CHENGDU_LAT = 30.5728
 CHENGDU_LON = 104.0668
+
+
 
 windows = gw.getAllWindows()
 
@@ -71,9 +79,28 @@ def get_current_volume():
 
 month_dict = {i: calendar.month_name[i] for i in range(1,13)}
 
+if os.path.exists("secrets.json"):
+    with open("secrets.json", "r") as f:
+        secrets = json.load(f)
+else:
+    secrets = {}
+
+# Load contacts
+if os.path.exists("contacts.json"):
+    with open("contacts.json", "r") as f:
+        contacts = json.load(f)
+else:
+    contacts = {}
+
+GMAIL_ADDRESS = secrets.get("gmail_address", "")
+GMAIL_PASSWORD = secrets.get("gmail_app_password", "")
+
 if os.path.exists("targets.json"):
     with open("targets.json", "r") as f:
         TARGETS = json.load(f)
+
+
+
 else:
     TARGETS = {
     "youtube": "https://youtube.com",
@@ -821,3 +848,105 @@ def handle_schedule(response, context):
     month = date_obj.month
     tts.speak_async(f"Event scheduled: {title} on {month_dict[month]} {day} at {time_normalized}")
     return True, context
+
+def send_email(recipient_name, subject, body):
+    
+    recipient_email = contacts.get(recipient_name.lower())
+
+    if not recipient_email:
+        # Contact not found — ask to add like comparison()
+        decision = input(f"Contact '{recipient_name}' not found. Add them? (yes/no): ")
+        if decision.lower() == "yes":
+            new_email = input(f"Enter email for {recipient_name}: ")
+            contacts[recipient_name.lower()] = new_email
+            with open("contacts.json", "w") as f:
+                json.dump(contacts, f)
+            recipient_email = new_email
+        else:
+            tts.speak_async("Contact not found.")
+            return
+        
+    try:
+        
+        #building the email structure
+
+        msg = MIMEMultipart()
+        msg["from"] = GMAIL_ADDRESS
+        msg["to"] = recipient_email
+        msg["subject"] = subject
+        msg.attach(MIMEText(body, "plain"))
+
+        with smtplib.SMTP("smtp.gmail.com", 587) as server:
+            
+            server.ehlo() # introducing ourselves to the server to unlock encryption
+            server.starttls() # unlocking encryption and re-introducing once again (implicit)
+            server.login(GMAIL_ADDRESS, GMAIL_PASSWORD)
+            server.sendmail(GMAIL_ADDRESS, recipient_email, msg.as_string())
+        
+        tts.speak_async(f"Email sent to {recipient_name}.")
+
+    except Exception as e:
+        print(f"Failed: {e}")
+        tts.speak_async("Failed to send email.")
+
+def check_inbox(sender_name=None):
+    try:
+        # Connect to Gmail IMAP server
+        mail = imaplib.IMAP4_SSL("imap.gmail.com")
+        mail.login(GMAIL_ADDRESS, GMAIL_PASSWORD)
+        mail.select("inbox")
+
+        if sender_name:
+            sender_email = contacts.get(sender_name.lower)
+
+            if not sender_email:
+                tts.speak_async(f"Contact {sender_name} not found.")
+                return
+            
+            _, messages = mail.search(None, f'FROM "{sender_email}"')
+
+        else:    
+            _, messages = mail.search(None, "ALL")
+
+        email_ids = messages[0].split()
+
+        if not email_ids:
+            tts.speak_async("No emails found.")
+            return
+
+        # get the last 3 recent emails, they're at the end of the list
+        recent_ids = email_ids[-3:][::-1] # reverse so newest is first
+        results = []
+
+        for eid in recent_ids:
+            # Fetch just the header, not the full body — faster
+            _, data = mail.fetch(eid, "(RFC822.HEADER)")
+            msg = email.message_from_bytes(data[0][1])
+            subject = msg.get("Subject", "No subject")
+            sender = msg.get("From", "Unknown")
+            results.append(f"{sender}: {subject}")
+        
+        mail.logout()
+        answer = "Your latest emails: " + ", ".join(results)
+        tts.speak_async(answer)
+
+    except Exception as e:
+        print(f"Inbox check failed: {e}")
+        tts.speak_async("Failed to check inbox.")
+            
+def handle_email_send(response, context):
+    recipient = response.get("recipient")
+    subject = response.get("subject")
+    body = response.get("body")
+    send_email(recipient, subject, body)
+    return True, context
+
+
+def handle_email_check(response, context):
+    sender = response.get("sender")
+    check_inbox(sender)
+    return True, context
+
+
+
+    

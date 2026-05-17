@@ -19,3 +19,5 @@ temp_speech.txt
 *.txt
 *.wav
 *.pyc
+secrets.json
+contacts.json

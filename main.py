@@ -52,7 +52,8 @@ ACTION_HANDLERS = {
     "reminder": reminder_checker.handle_reminder,
     "calendar": executor.handle_calendar,
     "schedule": executor.handle_schedule,
-
+    "email_send": executor.handle_email_send,
+    "email_check": executor.handle_email_check
 }
 
 def handle_unknown(response, context):
@@ -107,3 +108,4 @@ if __name__ == "__main__":
         if response.get("then"):
             then = response.get("then")
             flag, context = dispatch(then["action"], then, context)
+            
