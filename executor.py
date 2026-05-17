@@ -427,7 +427,7 @@ def find_files(filename, folder=None):
             all_items = [f for f in os.listdir(directory) 
             if os.path.splitext(f)[1].lower() not in blocked_extensions]
         except PermissionError:
-            tts.speak(f"Permission denied accessing {directory}.")
+            tts.speak_async(f"Permission denied accessing {directory}.")
             continue
         
         # Strip extensions for matching
@@ -465,7 +465,7 @@ def delete(filename, folder=None):
     matches = find_files(filename, folder)
     
     if not matches:
-        tts.speak(f"File {filename} not found.")
+        tts.speak_async(f"File {filename} not found.")
         return None  # Caller will ask retry/ignore
     
     if len(matches) == 1:
@@ -473,16 +473,16 @@ def delete(filename, folder=None):
         full_path, match_name, folder_name = matches[0]
         try:
             send2trash.send2trash(full_path)
-            tts.speak(f"Deleted {match_name} from {folder_name}.")
+            tts.speak_async(f"Deleted {match_name} from {folder_name}.")
             return True
         except Exception as e:
-            tts.speak(f"Could not delete {match_name}. Error: {str(e)}")
+            tts.speak_async(f"Could not delete {match_name}. Error: {str(e)}")
             return None
     
     else:
         # Multiple matches—ask user to confirm
         options = [f"{m[1]} (in {m[2]})" for m in matches]
-        tts.speak(f"Found multiple matches: {', '.join(options)}. Please specify which one to delete.")
+        tts.speak_async(f"Found multiple matches: {', '.join(options)}. Please specify which one to delete.")
         return None  # Caller will ask user to clarify
     
 def control(target, operation, value):
@@ -505,7 +505,7 @@ def control(target, operation, value):
 
     if target == "screenshot":
         pyautogui.screenshot(r"C:\Users\mehdi\Desktop\screenshot.png")
-        tts.speak("I have taken a screenshot")
+        tts.speak_async("I have taken a screenshot")
         return
 
     elif target == "brightness":
@@ -518,7 +518,7 @@ def control(target, operation, value):
         elif operation == "decrease":
             final_brightness = get_brightness()[0] - value
             set_brightness(final_brightness)
-        tts.speak(f"I have set the brightness to {final_brightness}")
+        tts.speak_async(f"I have set the brightness to {final_brightness}")
         return
 
     elif target == "volume":
@@ -531,7 +531,7 @@ def control(target, operation, value):
         elif operation == "decrease":
             subprocess.run([NIR_CMD_PATH, "changesysvolume", str(-value)])
         current = get_current_volume()
-        tts.speak(f"I have set the volume to {current}")
+        tts.speak_async(f"I have set the volume to {current}")
         return
     
     # If none of the above, it must be a media control command. 
@@ -539,7 +539,7 @@ def control(target, operation, value):
 
     browser = get_browser()
     if not browser:
-        tts.speak("No browser found")
+        tts.speak_async("No browser found")
         return
     
     for context in browser.contexts:
@@ -549,16 +549,16 @@ def control(target, operation, value):
                 if command:
                     page.keyboard.press(command)
                     return
-    tts.speak("Couldn't find an active music tab") 
+    tts.speak_async("Couldn't find an active music tab") 
     return
 
 def handle_speak(response, context):
     target = response.get("target")
-    tts.speak(target)
+    tts.speak_async(target)
     return True, context
 
 def handle_stop(response, context):
-    tts.speak("Shutting down.")
+    tts.speak_async("Shutting down.")
     return False, context
 
 def handle_search(response, context):
@@ -584,7 +584,7 @@ def handle_open(response, context):
             time.sleep(2)
             return True, context
         except Exception as e:
-            tts.speak(f"I couldn't open the {target} application: {e}")
+            tts.speak_async(f"I couldn't open the {target} application: {e}")
             return True, context
     print("Calling comp")
     url = comparison(target, context)
@@ -598,7 +598,7 @@ def handle_open(response, context):
 def handle_play(response, context):
     target = response.get("target")
     if not context or context not in SEARCH_URLS:
-        tts.speak("I don't know where to play that.")
+        tts.speak_async("I don't know where to play that.")
         return True, context
     url = SEARCH_URLS[context] + target.replace(" ", "+")
     play(url, context)
@@ -619,7 +619,7 @@ def handle_find(response, context):
         full_path, file_name, folder_name = matches[0]
         subprocess.Popen(f'explorer /select,"{full_path}"')
     else:
-        tts.speak(f"File {target} not found.")
+        tts.speak_async(f"File {target} not found.")
     return True, context
 
 def handle_control(response, context):
@@ -636,7 +636,7 @@ def handle_weather(response, context):
     info = get_weather(hours)
     answer = format_weather_response(info, hours)
     print(f"Answer {answer}")
-    tts.speak(answer)
+    tts.speak_async(answer)
     return True, context
 
 def handle_sys(response, context):
@@ -664,7 +664,7 @@ def handle_sys(response, context):
         # All info
         answer = f"System status: CPU {tasks['cpu']}%, RAM {tasks['ram']}%, Storage {tasks['storage']}%, Battery {tasks['battery']}%, GPU {tasks['gpu']}%"
     
-    tts.speak(answer)
+    tts.speak_async(answer)
     return True, context
 
 def handle_window(response, context):
@@ -674,7 +674,7 @@ def handle_window(response, context):
     try:
         window = gw.getWindowsWithTitle(target)[0]
     except IndexError:
-        tts.speak(f"Could not find window {target}")
+        tts.speak_async(f"Could not find window {target}")
         return True, context
 
     operations = {
@@ -689,7 +689,7 @@ def handle_window(response, context):
     except Exception as e:
         print(f"Window operation failed: {e}")
     
-    tts.speak(f"{operation}d {target}")
+    tts.speak_async(f"{operation}d {target}")
     return True, context
 
 def handle_spotify(response, context):
@@ -710,14 +710,11 @@ def handle_spotify(response, context):
             if pause_btn:
                 pause_btn.click()
                 target_page.wait_for_timeout(300)
-            for i in range(5):
-                try:
-                    track_link = target_page.wait_for_selector('a[data-testid="internal-track-link"]', state="visible", timeout=5000)
-                    time.sleep(1)
-                except Exception as e:
-                    print(e)
-                    return
-            tts.speak(f"Playing {genre}")
+
+            first_row = target_page.wait_for_selector('[data-testid="tracklist-row"]', state="visible", timeout=15000)
+            first_row.hover()
+            track_link = target_page.wait_for_selector('a[data-testid="internal-track-link"]', state="visible", timeout=5000)
+            tts.speak_async(f"Playing {genre}")
             track_link.dblclick(force=True)
 
     except Exception as e:
@@ -771,7 +768,7 @@ def handle_calendar(response, context):
         f.write(html_content)
 
     webbrowser.open(f"file:///{HTML_FILE}")
-    tts.speak("Opening your calendar")
+    tts.speak_async("Opening your calendar")
     return True, context
 
 def parse_date(date_str):
@@ -794,14 +791,14 @@ def handle_schedule(response, context):
     time_str = response.get("time")
 
     if not date_str or not title or not time_str:
-        tts.speak("Missing event details")
+        tts.speak_async("Missing event details")
         return True, context
     
     time_normalized = re.sub(r'\b(a\.?m\.?|p\.?m\.?)\b', lambda m: m.group(1).upper().replace('.', ''), time_str, flags=re.IGNORECASE)
 
     parsed_date = parse_date(date_str)
     if not parsed_date:
-        tts.speak("Could not parse date")
+        tts.speak_async("Could not parse date")
         return True, context
 
     try:
@@ -822,5 +819,5 @@ def handle_schedule(response, context):
     date_obj = datetime.strptime(parsed_date, "%Y-%m-%d")
     day = date_obj.day
     month = date_obj.month
-    tts.speak(f"Event scheduled: {title} on {month_dict[month]} {day} at {time_normalized}")
+    tts.speak_async(f"Event scheduled: {title} on {month_dict[month]} {day} at {time_normalized}")
     return True, context

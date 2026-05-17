@@ -22,6 +22,7 @@ def load_ollama():
     ollama.chat(model="qwen2.5:1.5b", messages=[{"role": "user", "content": "hi"}])
     print("Ollama ready")
 
+
 ui_thread = threading.Thread(target=ui.run_ui, daemon=True)
 ui_thread.start()
 print("Ui on")
@@ -65,12 +66,13 @@ def dispatch(action, response, context):
 
 def wait_for_input():
     keyboard.wait('f8')
+    tts.stop_speaking()
     state.current_state = "listening"
     return listener.rec()
 
 if __name__ == "__main__":
     state.current_state = "speaking"
-    tts.speak("Ready")
+    tts.speak_async("Ready")
     flag = True
     context = None
     while flag:
@@ -82,10 +84,10 @@ if __name__ == "__main__":
             state.current_state = "thinking"
         except Exception:
             state.current_state = "speaking"
-            tts.speak("Could you repeat that?")
+            tts.speak_async("Could you repeat that?")
             continue
         if not text:
-            tts.speak("Could you repeat that?")
+            tts.speak_async("Could you repeat that?")
             continue
 
         print(text)
@@ -97,7 +99,7 @@ if __name__ == "__main__":
             answer = brain.converse(text)
             print(answer)
             state.current_state = "speaking"
-            tts.speak(answer)
+            tts.speak_async(answer)
             continue
 
         print(response)
