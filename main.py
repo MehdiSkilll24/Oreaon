@@ -1,6 +1,10 @@
 import tts, listener, brain, executor, state, ui, keyboard, reminder_checker, threading, ollama, os
 from faster_whisper import WhisperModel
 
+ui_thread = threading.Thread(target=ui.run_ui, daemon=True)
+ui_thread.start()
+print("Ui on")
+
 os.environ["HF_HUB_OFFLINE"] = "1"
 
 def load_whisper():
@@ -21,12 +25,6 @@ def load_ollama():
     # Warm up Ollama with dummy request
     ollama.chat(model="qwen2.5:1.5b", messages=[{"role": "user", "content": "hi"}])
     print("Ollama ready")
-
-
-ui_thread = threading.Thread(target=ui.run_ui, daemon=True)
-ui_thread.start()
-print("Ui on")
-
 t1 = threading.Thread(target=load_whisper)
 t3 = threading.Thread(target=load_ollama)
 
@@ -35,6 +33,7 @@ t3.start()
 
 t1.join()
 t3.join()
+
 
 ACTION_HANDLERS = {
     "speak": executor.handle_speak,
@@ -60,16 +59,23 @@ def handle_unknown(response, context):
     tts.speak("I don't know this action")
     return True, context
 
-
 def dispatch(action, response, context):
     handler = ACTION_HANDLERS.get(action, handle_unknown)
     return handler(response, context)
 
 def wait_for_input():
-    keyboard.wait('f8')
-    tts.stop_speaking()
-    state.current_state = "listening"
-    return listener.rec()
+    while True:
+        pressed = keyboard.read_hotkey(suppress=False)
+
+        if pressed == "f8":
+            tts.stop_speaking()
+            state.current_state = "listening"
+            return listener.rec(), None
+        elif pressed == "f7":
+            tts.stop_speaking()
+            state.current_state = "listening"
+            text = input("Type your command: ")
+            return None, text
 
 if __name__ == "__main__":
     state.current_state = "speaking"
@@ -78,15 +84,20 @@ if __name__ == "__main__":
     context = None
     while flag:
         state.current_state = "idle"
-        path = wait_for_input()
-        
-        try:
-            text = brain.transcribe(path).lower()
+        path, text_input = wait_for_input()
+
+        if text_input:
+            text = text_input.lower()
             state.current_state = "thinking"
-        except Exception:
-            state.current_state = "speaking"
-            tts.speak_async("Could you repeat that?")
-            continue
+
+        else:
+            try:
+                text = brain.transcribe(path).lower()
+                state.current_state = "thinking"
+            except Exception:
+                state.current_state = "speaking"
+                tts.speak_async("Could you repeat that?")
+                continue
         if not text:
             tts.speak_async("Could you repeat that?")
             continue
@@ -108,4 +119,4 @@ if __name__ == "__main__":
         if response.get("then"):
             then = response.get("then")
             flag, context = dispatch(then["action"], then, context)
-            
+

@@ -28,7 +28,7 @@ ACTIONS & FORMATS:
 {{"action": "calendar"}}
 {{"action": "schedule", "title": "<event>", "date": "<date>", "time": "<time>"}}
 {{"action": "email_send", "recipient": "<contact_name>", "subject": "<subject>", "body": "<body>"}}
-{{"action": "email_check", "sender": "<contact_name|null>"}}
+{{"action": "email_check", "sender": "<contact_name|null>", "summarize": <boolean>}}
 {{"action": "unknown"}}
 
 RULES:
@@ -47,7 +47,7 @@ RULES:
 - "calendar" → show calendar/schedule/events
 - "schedule" → add event; extract title, date, time
 - "email_send" → triggered by "send email", "email X"; extract recipient, subject, body
-- "email_check" → triggered by "check emails", "check inbox", "any emails from X"; extract sender if mentioned, else null
+- "email_check" → triggered by "check emails", "check inbox", "any emails from X"; sender is ANY name after "from", no matter what it is. If the name is spelled, use that spelling as a reference.
 - "unknown" → absurd or corrupted input
 
 
@@ -69,7 +69,13 @@ Examples:
 "send an email to mom saying I'll be late" → {{"action": "email_send", "recipient": "mom", "subject": "Running late", "body": "I'll be late."}}
 "check my emails" → {{"action": "email_check", "sender": null}}
 "any emails from john?" → {{"action": "email_check", "sender": "john"}}
+"summarize my emails" → {{"action": "email_check", "sender": null, "summarize": true}}
+"summarize emails from j-o-h-n" → {{"action": "email_check", "sender": "john", "summarize": true}}
+"summarize emails from Mehdi" → {{"action": "email_check", "sender": "mehdi", "summarize": true}}
+"summarize emails from john" → {{"action": "email_check", "sender": "john", "summarize": true}}
+"summarize my emails from sarah" → {{"action": "email_check", "sender": "sarah", "summarize": true}}
 """
+
 SPEECH_PROMPT = """
 You are Oreaon, a smart and concise voice assistant.
 Answer the user's question or statement directly and naturally.
@@ -79,6 +85,8 @@ You can include edge cases in anything you say if that's necessary.
 You are allowed to have opinions on topics and can justify those opinions however you see fit.
 You have to answer questions no matter how unrelated they are. If the user talks about apples and bananas,
 then jumps to a different topic, you must adapt accordingly.
+You may only adress me as MSkilll, or Sir. I'm a software engineer who likes sarcasm and jokes. And always mention edge cases for anything you're 
+asked about. You can also make jokes and be critical when asked about anything.
 """
 
 if os.path.exists("conversation_history.json"):
@@ -134,7 +142,7 @@ def summarizer(history):
     return 
 
 
-def converse(text):
+def converse(text, save_to_history = True):
     global counter
 
     in_response = ollama.chat(
@@ -152,16 +160,17 @@ def converse(text):
         }
     )
     content = in_response.message.content
-    conversation_history.append({"role": "user", "content": text})
-    conversation_history.append({"role": "assistant", "content": content})
-    with open("conversation_history.json", "w") as f:
-        json.dump(conversation_history, f)
+    if save_to_history:
+        conversation_history.append({"role": "user", "content": text})
+        conversation_history.append({"role": "assistant", "content": content})
+        with open("conversation_history.json", "w") as f:
+            json.dump(conversation_history, f)
 
-    counter += 1
-    if counter == COUNTER_LIMIT:
-        print("Summarizing convo...")
-        summarizer(conversation_history)
-        counter = 0
+        counter += 1
+        if counter == COUNTER_LIMIT:
+            print("Summarizing convo...")
+            summarizer(conversation_history)
+            counter = 0
     return content
 
 

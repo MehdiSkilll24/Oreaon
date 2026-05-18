@@ -26,7 +26,7 @@ def speak(text: str):
     _stop_flag = False
 
     temp_file = r"C:\Users\mehdi\Desktop\Pythonfiles\Projects\OREAON\temp_speech.txt"
-    with open(temp_file, "w") as f:
+    with open(temp_file, "w", encoding="utf-8") as f:
         f.write(text)
     
     piper_dir = r"C:\Users\mehdi\Desktop\Pythonfiles\Projects\OREAON\voices\piper"

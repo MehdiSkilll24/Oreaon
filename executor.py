@@ -18,10 +18,10 @@ import imaplib
 import email
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-
-
 from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
 from comtypes import CLSCTX_ALL
+import brain
+from email.header import decode_header
 
 
 DW_DIR = r"C:\Users\mehdi\Downloads"
@@ -732,7 +732,7 @@ def handle_spotify(response, context):
 
             playlist_link = target_page.wait_for_selector('a[href*="/playlist/"]', state="visible", timeout=15000)
             playlist_link.click()
-            
+
             pause_btn = target_page.query_selector('button[aria-label="Pause"]')
             if pause_btn:
                 pause_btn.click()
@@ -849,6 +849,17 @@ def handle_schedule(response, context):
     tts.speak_async(f"Event scheduled: {title} on {month_dict[month]} {day} at {time_normalized}")
     return True, context
 
+def decode_subject(subject_raw):
+    decoded = decode_header(subject_raw)
+    parts = []
+    for part, encoding, in decoded:
+        if isinstance(part, bytes):
+            parts.append(part.decode(encoding or "utf-8", errors="ignore"))
+        else:
+            parts.append(part)
+
+    return "".join(parts)
+
 def send_email(recipient_name, subject, body):
     
     recipient_email = contacts.get(recipient_name.lower())
@@ -889,21 +900,15 @@ def send_email(recipient_name, subject, body):
         print(f"Failed: {e}")
         tts.speak_async("Failed to send email.")
 
-def check_inbox(sender_name=None):
+def check_inbox(sender_name=None, summarize=False):
     try:
         # Connect to Gmail IMAP server
         mail = imaplib.IMAP4_SSL("imap.gmail.com")
         mail.login(GMAIL_ADDRESS, GMAIL_PASSWORD)
         mail.select("inbox")
 
-        if sender_name:
-            sender_email = contacts.get(sender_name.lower)
-
-            if not sender_email:
-                tts.speak_async(f"Contact {sender_name} not found.")
-                return
-            
-            _, messages = mail.search(None, f'FROM "{sender_email}"')
+        if sender_name:            
+            _, messages = mail.search(None, f'FROM "{sender_name}"')
 
         else:    
             _, messages = mail.search(None, "ALL")
@@ -914,17 +919,35 @@ def check_inbox(sender_name=None):
             tts.speak_async("No emails found.")
             return
 
-        # get the last 3 recent emails, they're at the end of the list
-        recent_ids = email_ids[-3:][::-1] # reverse so newest is first
+        # get the last 5 recent emails, they're at the end of the list
+        recent_ids = email_ids[-5:][::-1] # reverse so newest is first
         results = []
 
         for eid in recent_ids:
-            # Fetch just the header, not the full body — faster
-            _, data = mail.fetch(eid, "(RFC822.HEADER)")
-            msg = email.message_from_bytes(data[0][1])
-            subject = msg.get("Subject", "No subject")
-            sender = msg.get("From", "Unknown")
-            results.append(f"{sender}: {subject}")
+            if not summarize:
+                _, data = mail.fetch(eid, "(RFC822.HEADER)")
+                msg = email.message_from_bytes(data[0][1])
+                subject = decode_subject(msg.get("Subject", "No subject"))
+                sender = decode_subject(msg.get("From", "Unknown"))
+                results.append(f"{sender}: {subject}") 
+            else:
+                _, data = mail.fetch(eid, "(RFC822.TEXT)")
+                msg = email.message_from_bytes(data[0][1])
+                subject = msg.get("Subject", "No subject")
+                sender = msg.get("From", "Unknown")
+
+                # Extract body
+                body_text = ""
+                if msg.is_multipart():
+                    for part in msg.walk():
+                        if part.get_content_type() == "text/plain":
+                            body_text = part.get_payload(decode=True).decode(errors="ignore")
+                            break
+                else:
+                    body_text = msg.get_payload(decode=True).decode(errors="ignore")
+                
+                summary = brain.converse(f"Summarize this email in 3 to 5 lines: {body_text[:2000]}", save_to_history=False)
+                results.append(f"sender: {sender} - subject: {summary}")
         
         mail.logout()
         answer = "Your latest emails: " + ", ".join(results)
@@ -941,12 +964,9 @@ def handle_email_send(response, context):
     send_email(recipient, subject, body)
     return True, context
 
-
 def handle_email_check(response, context):
     sender = response.get("sender")
-    check_inbox(sender)
+    summarize = response.get("summarize", False)
+    check_inbox(sender, summarize)
     return True, context
 
-
-
-    

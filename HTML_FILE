@@ -1,0 +1,26 @@
+
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Oreaon Calendar</title>
+        <style>
+            body { font-family: Arial; background: #1e1e1e; color: white; padding: 20px; }
+            .container { max-width: 800px; margin: auto; }
+            h1 { color: #00d4ff; }
+            .event { background: #2d2d2d; padding: 15px; margin: 10px 0; border-left: 4px solid #00d4ff; }
+            .time { color: #00d4ff; font-weight: bold; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>📅 Oreaon Calendar</h1>
+    
+            <div class="event">
+                <div class="time">today at 3.27 PM.</div>
+                <div>meeting</div>
+            </div>
+            
+        </div>
+    </body>
+    </html>
+    

@@ -21,3 +21,14 @@ temp_speech.txt
 *.pyc
 secrets.json
 contacts.json
+distil_whisper/config.json
+distil_whisper/gitattributes
+distil_whisper/model.bin
+distil_whisper/preprocessor_config.json
+distil_whisper/README.md
+distil_whisper/vocabulary.json
+distil_whisper/tokenizer.json
+oreaon_service.py
+*.txt
+*.wav
+*.pyc
