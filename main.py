@@ -1,11 +1,12 @@
-import tts, listener, brain, executor, state, ui, keyboard, reminder_checker, threading, ollama, os
+import tts, listener, brain, executor, state, ui, clap_detector, keyboard, reminder_checker, threading, ollama, os, queue, time
 from faster_whisper import WhisperModel
 
 ui_thread = threading.Thread(target=ui.run_ui, daemon=True)
 ui_thread.start()
 print("Ui on")
-
+audio_queue = queue.Queue()
 os.environ["HF_HUB_OFFLINE"] = "1"
+
 
 def load_whisper():
     global whisper_model
@@ -34,6 +35,8 @@ t3.start()
 t1.join()
 t3.join()
 
+clap_thread = threading.Thread(target=clap_detector.detect_claps, args=(audio_queue,), daemon=True)
+clap_thread.start()
 
 ACTION_HANDLERS = {
     "speak": executor.handle_speak,
@@ -56,7 +59,7 @@ ACTION_HANDLERS = {
 }
 
 def handle_unknown(response, context):
-    tts.speak("I don't know this action")
+    tts.speak_async("I don't know this action")
     return True, context
 
 def dispatch(action, response, context):
@@ -65,28 +68,43 @@ def dispatch(action, response, context):
 
 def wait_for_input():
     while True:
-        pressed = keyboard.read_hotkey(suppress=False)
+        try:
+            path = audio_queue.get(timeout=0.1)
+            return path, None
+        except queue.Empty:
+            pass
 
-        if pressed == "f8":
+        if keyboard.is_pressed("f8"):
             tts.stop_speaking()
             state.current_state = "listening"
+            while keyboard.is_pressed("f8"):  # wait for release
+                time.sleep(0.01)
             return listener.rec(), None
-        elif pressed == "f7":
+        
+        elif keyboard.is_pressed("f7"):
             tts.stop_speaking()
             state.current_state = "listening"
+            while keyboard.is_pressed("f7"):  # wait for release
+                time.sleep(0.01)
             text = input("Type your command: ")
             return None, text
 
 if __name__ == "__main__":
     state.current_state = "speaking"
-    tts.speak_async("Ready")
+    tts.speak_async("Oreaon ready sir")
     flag = True
     context = None
+
     while flag:
         state.current_state = "idle"
         path, text_input = wait_for_input()
 
-        if text_input:
+        if path and not text_input and state.first_launch:
+            state.first_launch = False
+            executor.run_intro()
+            continue
+
+        elif text_input:
             text = text_input.lower()
             state.current_state = "thinking"
 

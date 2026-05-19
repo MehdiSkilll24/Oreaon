@@ -34,7 +34,6 @@ def speak(text: str):
     
     _tts_process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     _tts_process.communicate()
-    print(f"Return code: {_tts_process.returncode}")
     
     if _tts_process.returncode != 0:
         print(f"Stderr: {_tts_process.returncode}")

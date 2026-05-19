@@ -970,3 +970,26 @@ def handle_email_check(response, context):
     check_inbox(sender, summarize)
     return True, context
 
+def run_intro():
+    mp3_path = r"C:\Users\mehdi\Music\intro.mp3"
+    cmd = f'start /min "" "{mp3_path}"'
+    subprocess.Popen(cmd, shell=True)
+    time.sleep(1)
+    
+    tts.speak_async("Welcome back Sir, Oreaon online and ready")
+    time.sleep(1.5)
+
+    weather = get_weather(0)
+    weather_str = format_weather_response(weather, 0)
+    tts.speak_async(weather_str)
+    time.sleep(8)
+
+    cpu = psutil.cpu_percent(interval=1)
+    ram = psutil.virtual_memory().percent
+    battery = psutil.sensors_battery().percent
+    tts.speak_async(f"System status: CPU at {cpu}%, RAM at {ram}%, Battery at {battery}%.")
+    time.sleep(7)
+
+    fact = brain.converse("Give me one short interesting fun fact (Don't say sure or anything, get straight to it)", False)
+    tts.speak_async(fact)
+    
