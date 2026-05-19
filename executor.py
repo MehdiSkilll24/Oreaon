@@ -981,10 +981,10 @@ def run_intro():
     mp3_path = r"C:\Users\mehdi\Music\intro.mp3"
     cmd = f'start /min "" "{mp3_path}"'
     subprocess.Popen(cmd, shell=True)
-    time.sleep(1)
+    time.sleep(1.7)
     
     tts.speak_async("Welcome back Sir, Oreaon online and ready")
-    time.sleep(1.5)
+    time.sleep(1)
     
     now = datetime.now()
     time_str = now.strftime("%I:%M %p")  # e.g. "09:45 AM"
@@ -994,15 +994,15 @@ def run_intro():
     weather = get_weather(0)
     weather_str = format_weather_response(weather, 0)
     tts.speak_async(weather_str)
-    time.sleep(7)
+    time.sleep(6.2)
 
     cpu = psutil.cpu_percent(interval=1)
     ram = psutil.virtual_memory().percent
     battery = psutil.sensors_battery().percent
     tts.speak_async(f"System status: CPU at {cpu}%, RAM at {ram}%, Battery at {battery}%.")
-    time.sleep(7)
+    time.sleep(6.7)
 
-    fact = brain.converse("Give me one short interesting fun fact (Don't say <sure> or anything, get straight to it)", False)
+    fact = brain.converse("Give me one short interesting fun fact (Don't say <sure> or anything, get straight to it)", True)
     tts.speak_async(fact)
 
 def handle_time(response, context):

@@ -6,7 +6,7 @@ audio_path = r"C:\Users\mehdi\Desktop\Pythonfiles\Projects\OREAON\command.wav"
 
 counter = 0
 
-COUNTER_LIMIT = 15
+COUNTER_LIMIT = 25
 
 SYSTEM_PROMPT = f"""
 You are a command parser for a voice assistant.
