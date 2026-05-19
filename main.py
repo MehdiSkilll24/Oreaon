@@ -55,7 +55,8 @@ ACTION_HANDLERS = {
     "calendar": executor.handle_calendar,
     "schedule": executor.handle_schedule,
     "email_send": executor.handle_email_send,
-    "email_check": executor.handle_email_check
+    "email_check": executor.handle_email_check,
+    "time": executor.handle_time
 }
 
 def handle_unknown(response, context):
@@ -76,16 +77,17 @@ def wait_for_input():
 
         if keyboard.is_pressed("f8"):
             tts.stop_speaking()
-            state.current_state = "listening"
             while keyboard.is_pressed("f8"):  # wait for release
                 time.sleep(0.01)
-            return listener.rec(), None
+            state.current_state = "listening"
+            path = listener.rec()
+            return path, None
         
         elif keyboard.is_pressed("f7"):
             tts.stop_speaking()
-            state.current_state = "listening"
             while keyboard.is_pressed("f7"):  # wait for release
                 time.sleep(0.01)
+            state.current_state = "listening"
             text = input("Type your command: ")
             return None, text
 
@@ -99,7 +101,7 @@ if __name__ == "__main__":
         state.current_state = "idle"
         path, text_input = wait_for_input()
 
-        if path and not text_input and state.first_launch:
+        if path == "intro" and not text_input and state.first_launch:
             state.first_launch = False
             executor.run_intro()
             continue

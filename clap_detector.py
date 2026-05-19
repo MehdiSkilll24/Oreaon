@@ -48,5 +48,8 @@ def detect_claps(audio_queue):
             if triggered:
                 state.current_state = "listening"
                 triggered = False
-                audio_queue.put(listener.rec(True))
+                if state.first_launch:
+                    audio_queue.put("intro")
+                else:
+                    audio_queue.put(listener.rec())
             time.sleep(0.05)

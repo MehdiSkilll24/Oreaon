@@ -48,8 +48,8 @@ RULES:
 - "schedule" → add event; extract title, date, time
 - "email_send" → triggered by "send email", "email X"; extract recipient, subject, body
 - "email_check" → triggered by "check emails", "check inbox", "any emails from X"; sender is ANY name after "from", no matter what it is. If the name is spelled, use that spelling as a reference.
+- "time" → triggered by "what time", "current time", "what's the time"
 - "unknown" → absurd or corrupted input
-
 
 HAINING: If user says "and" or "then", return nested actions (max 2):
 {{"action": "<first>", ..., "then": {{"action": "<second>", ...}}}}

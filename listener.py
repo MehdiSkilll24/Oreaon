@@ -4,17 +4,25 @@ import scipy.io.wavfile as wav
 import tts
 
 SAMPLE_RATE = 16000
-SILENCE_TIMEOUT = 3
+SILENCE_TIMEOUT = 2
 CHUNK_DURATION = 0.1
 OUTPUT_WAV = r"C:\Users\mehdi\Desktop\Pythonfiles\Projects\OREAON\command.wav"
+
+def beep(frequency=880, duration=0.30):
+    sample_rate = 44100
+    samples = np.sin(2 * np.pi * frequency * np.linspace(0, duration, int(sample_rate * duration)))
+    sd.play((samples * 32767).astype(np.int16), samplerate=sample_rate)
+    sd.wait()
 
 def rec(clap_flag=False):
     silence = 0
     frames = []
+
+    if not clap_flag:
+        beep()
+
     with sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype='float32') as stream:
         chunk_samples = int(CHUNK_DURATION * SAMPLE_RATE)
-        if clap_flag == False:
-            tts.speak_async("Listening")
             
         while True:
             chunk, _ = stream.read(chunk_samples)

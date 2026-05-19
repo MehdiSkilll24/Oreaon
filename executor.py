@@ -417,7 +417,7 @@ def format_weather_response(weather_data, hours_ahead):
         response += f", and {precip}mm of rain expected"
     
     else:
-        response += f", and no precipitations expected"
+        response += f", and no rain expected"
     
     return response
 
@@ -737,12 +737,19 @@ def handle_spotify(response, context):
             if pause_btn:
                 pause_btn.click()
                 target_page.wait_for_timeout(300)
+        for _ in range(3):
+            try:
+                first_row = target_page.wait_for_selector('[data-testid="tracklist-row"]', state="visible", timeout=15000)
+                first_row.hover()
+                target_page.wait_for_timeout(500)
+                track_link = target_page.wait_for_selector('a[data-testid="internal-track-link"]', state="visible", timeout=5000)
+                track_link.dblclick(force=True)
+                break
+            except Exception as e:
+                print(f"Retry: {e}")
+                target_page.wait_for_timeout(1000)
 
-            first_row = target_page.wait_for_selector('[data-testid="tracklist-row"]', state="visible", timeout=15000)
-            first_row.hover()
-            track_link = target_page.wait_for_selector('a[data-testid="internal-track-link"]', state="visible", timeout=5000)
-            tts.speak_async(f"Playing {genre}")
-            track_link.dblclick(force=True)
+        tts.speak_async(f"Playing {genre}")
 
     except Exception as e:
         print(f"Track playing failed {e}")
@@ -978,11 +985,16 @@ def run_intro():
     
     tts.speak_async("Welcome back Sir, Oreaon online and ready")
     time.sleep(1.5)
+    
+    now = datetime.now()
+    time_str = now.strftime("%I:%M %p")  # e.g. "09:45 AM"
+    tts.speak_async(f"The time is {time_str}.")
+    time.sleep(1)
 
     weather = get_weather(0)
     weather_str = format_weather_response(weather, 0)
     tts.speak_async(weather_str)
-    time.sleep(8)
+    time.sleep(7)
 
     cpu = psutil.cpu_percent(interval=1)
     ram = psutil.virtual_memory().percent
@@ -990,6 +1002,11 @@ def run_intro():
     tts.speak_async(f"System status: CPU at {cpu}%, RAM at {ram}%, Battery at {battery}%.")
     time.sleep(7)
 
-    fact = brain.converse("Give me one short interesting fun fact (Don't say sure or anything, get straight to it)", False)
+    fact = brain.converse("Give me one short interesting fun fact (Don't say <sure> or anything, get straight to it)", False)
     tts.speak_async(fact)
-    
+
+def handle_time(response, context):
+    now = datetime.now()
+    tts.speak_async(f"It's {now.strftime('%I:%M %p')}.")
+    return True, context
+
