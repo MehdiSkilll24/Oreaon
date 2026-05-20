@@ -766,8 +766,11 @@ def handle_spotify(response, context):
 
             pause_btn = target_page.query_selector('button[aria-label="Pause"]')
             if pause_btn:
-                pause_btn.click()
-                target_page.wait_for_timeout(300)
+                try:
+                    pause_btn.click()
+                    target_page.wait_for_timeout(300)
+                except Exception:
+                    pass
         for _ in range(3):
             try:
                 first_row = target_page.wait_for_selector('[data-testid="tracklist-row"]', state="visible", timeout=15000)
@@ -1012,28 +1015,28 @@ def run_intro():
     mp3_path = r"C:\Users\mehdi\Music\intro.mp3"
     cmd = f'start /min "" "{mp3_path}"'
     subprocess.Popen(cmd, shell=True)
-    time.sleep(1)
+    time.sleep(0.5)
     
     tts.speak_async("Oreaon online and ready, welcome back Sir")
-    time.sleep(2.5)
+    time.sleep(3)
     
     now = datetime.now()
     time_str = now.strftime("%I:%M %p")  # e.g. "09:45 AM"
     tts.speak_async(f"The time is {time_str}.")
-    time.sleep(1)
+    time.sleep(0.6)
 
     weather = get_weather(0)
     weather_str = format_weather_response(weather, 0)
     tts.speak_async(weather_str)
-    time.sleep(6.2)
+    time.sleep(6.1)
 
     cpu = psutil.cpu_percent(interval=1)
     ram = psutil.virtual_memory().percent
     battery = psutil.sensors_battery().percent
     tts.speak_async(f"System status: CPU at {cpu}%, RAM at {ram}%, Battery at {battery}%.")
-    time.sleep(6.7)
+    time.sleep(6.9)
 
-    fact = brain.converse("Give me one short interesting fun fact (Don't say <sure> or anything, get straight to it)", True)
+    fact = brain.converse("Give me one random short interesting fun fact (Don't say <sure> or anything, start by saying: Did you know that...)", True)
     tts.speak_async(fact)
 
 def handle_time(response, context):

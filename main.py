@@ -15,12 +15,10 @@ def load_whisper():
         device="cuda",
         compute_type="float16",
     )
-    print("Whisper ready")
 
 def load_browser():
     global browser
     browser = executor.get_browser()
-    print("Browser ready")
 
 def load_ollama():
     # Warm up Ollama with dummy request
@@ -76,6 +74,7 @@ def wait_for_input():
             pass
 
         if keyboard.is_pressed("f8"):
+            state.first_launch = False 
             tts.stop_speaking()
             while keyboard.is_pressed("f8"):  # wait for release
                 time.sleep(0.01)
@@ -84,6 +83,7 @@ def wait_for_input():
             return path, None
         
         elif keyboard.is_pressed("f7"):
+            state.first_launch = False 
             tts.stop_speaking()
             while keyboard.is_pressed("f7"):  # wait for release
                 time.sleep(0.01)

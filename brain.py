@@ -34,8 +34,13 @@ ACTIONS & FORMATS:
 RULES:
 - "open" → open app/site
 - "open" → if preceded by "new", set "new": true, otherwise omit "new"
-- "speak" → for opinion questions, comparisons, advice, casual conversation. Anything that fails all other features defaults to speech.
-- "search" → if "on youtube" or "on spotify" mentioned, set context accordingly, otherwise null. Search is only triggered when specifically mentionned as "search for". Otherwise default to speak action
+"search" → Triggered ONLY when the user uses explicit intent phrases: "search for", "look up", "google", "find online", "find videos of", or mentions a platform like "on youtube" / "on google". 
+  * Never generate an answer inside "target". Extract the literal search query keywords only.
+  * If a platform is omitted but explicit search intent is present (e.g., "search for cake recipes"), default "context" to null.
+  
+- "speak" → Triggered for questions asking for direct information, facts, definitions, processing, opinions, or conversation (e.g., "Who was...", "What is...", "Why do...", "Tell me about...", "Should I...").
+  * The model must answer the question directly inside the "target" field using a concise, direct response. Do not recommend searching.
+
 - "stop"/"exit"/"goodbye" → stop
 - "delete"/"remove" → delete; "find"/"look for" → find
 - "control" → set/increase/decrease/pause/resume/next/previous/screenshot
@@ -74,6 +79,11 @@ Examples:
 "summarize emails from Mehdi" → {{"action": "email_check", "sender": "mehdi", "summarize": true}}
 "summarize emails from john" → {{"action": "email_check", "sender": "john", "summarize": true}}
 "summarize my emails from sarah" → {{"action": "email_check", "sender": "sarah", "summarize": true}}
+"search for cake recipes" → {{"action": "search", "target": "cake recipes", "context": null}}
+"Who was Leonardo Da Vinci?" → {{"action": "speak", "target": "Leonardo da Vinci was an Italian polymath of the High Renaissance who was active as a painter, scientist, engineer, and architect."}}
+"search for Leonardo Da Vinci" → {{"action": "search", "target": "Leonardo Da Vinci", "context": null}}
+"How do I fix a leaky faucet?" → {{"action": "speak", "target": "Turn off the water supply, remove the handle, replace the worn-out washer or O-ring inside the stem, and reassemble."}}
+"search for leaky faucet repair videos" → {{"action": "search", "target": "leaky faucet repair videos", "context": "youtube"}}
 """
 
 SPEECH_PROMPT = """
