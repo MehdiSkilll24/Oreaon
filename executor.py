@@ -231,10 +231,13 @@ def open_url(url, new= False):
         try:
             if not target_page.is_closed():
                 target_page.bring_to_front()
+
                 if "search" in url and url!=target_page.url :
                     target_page.goto(url, wait_until="commit")
+
                 elif extract_domain(url) not in extract_domain(target_page.url):
                     target_page.goto(url, wait_until="commit")
+
                 return target_page
         except Exception as e:
             print(f"Page closed {e}")
@@ -280,12 +283,11 @@ def run_search(query):
         return
 
     encoded_query = urllib.parse.quote(query)
-    
-    # (Changed from google.com to search.brave.com) We anchor the user query to the default browser's query syntax: browser_query + <actual search query>
-    
     url = f"https://search.brave.com/search?q={encoded_query}"
-    open_url(url)
-    return url
+    print(f"Searching for: {url}")
+    page = open_url(url)
+    print(f"Page URL after open: {page.url}")
+    return url, page
 
 def play(search_url, context):
     print(f"play() called with: {search_url}, {context}")
@@ -589,12 +591,41 @@ def handle_stop(response, context):
     return False, context
 
 def handle_search(response, context):
+    page = None
     target = response.get("target")
-    if context and context in SEARCH_URLS:
-        url = SEARCH_URLS[context] + target.replace(" ", "+")
+    search_context = response.get("context")
+    if search_context and search_context in SEARCH_URLS:
+        url = SEARCH_URLS[search_context] + target.replace(" ", "+")
         open_url(url)
-    else:
-        url = run_search(target)
+        return True, context
+    
+    url, page = run_search(target)
+
+    if not page:
+        return True, context
+    
+    try:
+        summary_box = page.wait_for_selector("#chatllm-main-answer-content", timeout=5000)
+        if summary_box:
+            text = summary_box.inner_text()
+            summary = brain.converse(f"Summarize this briefly in 2-3 sentences: {text[:2000]}", True)
+            tts.speak_async(summary)
+            return True, context
+    except Exception:
+        pass
+
+    try:
+        wiki_link = page.wait_for_selector('a[href*="wikipedia.org"]', timeout=5000)
+        if wiki_link:
+            wiki_url = wiki_link.get_attribute("href")
+            wiki_page = open_url(wiki_url, new= True)
+            content = wiki_page.inner_text("#mw-content-text")
+            summary = brain.converse(f"Summarize this briefly in 2-3 sentences: {content[:2000]}", True)
+            tts.speak_async(summary)
+
+    except Exception as e:
+        print(f"Search summary failed: {e}")
+
     return True, context
 
 def handle_open(response, context):
@@ -981,10 +1012,10 @@ def run_intro():
     mp3_path = r"C:\Users\mehdi\Music\intro.mp3"
     cmd = f'start /min "" "{mp3_path}"'
     subprocess.Popen(cmd, shell=True)
-    time.sleep(1.7)
-    
-    tts.speak_async("Welcome back Sir, Oreaon online and ready")
     time.sleep(1)
+    
+    tts.speak_async("Oreaon online and ready, welcome back Sir")
+    time.sleep(2.5)
     
     now = datetime.now()
     time_str = now.strftime("%I:%M %p")  # e.g. "09:45 AM"

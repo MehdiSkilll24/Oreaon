@@ -93,7 +93,7 @@ def wait_for_input():
 
 if __name__ == "__main__":
     state.current_state = "speaking"
-    tts.speak_async("Oreaon ready sir")
+    print("\n.")
     flag = True
     context = None
 

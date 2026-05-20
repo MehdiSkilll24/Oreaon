@@ -14,7 +14,7 @@ Return ONLY a JSON object. No prose, no explanation.
 
 ACTIONS & FORMATS:
 {{"action": "open", "target": "<app_or_site>", "new": <boolean>}}
-{{"action": "search", "target": "<query>"}}
+{{"action": "search", "target": "<query>", "context": "<youtube|spotify|null>"}}
 {{"action": "speak", "target": "<concise_answer>"}}
 {{"action": "control", "target": "<volume|brightness|screenshot|pause|resume|next|previous>", "operation": "<set|increase|decrease|execute>", "value": <number|null>}}
 {{"action": "stop"}}
@@ -35,7 +35,7 @@ RULES:
 - "open" → open app/site
 - "open" → if preceded by "new", set "new": true, otherwise omit "new"
 - "speak" → for opinion questions, comparisons, advice, casual conversation. Anything that fails all other features defaults to speech.
-- "search" → ONLY for specific facts, news, current events, or lookups requiring real-time data.
+- "search" → if "on youtube" or "on spotify" mentioned, set context accordingly, otherwise null. Search is only triggered when specifically mentionned as "search for". Otherwise default to speak action
 - "stop"/"exit"/"goodbye" → stop
 - "delete"/"remove" → delete; "find"/"look for" → find
 - "control" → set/increase/decrease/pause/resume/next/previous/screenshot
