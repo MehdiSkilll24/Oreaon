@@ -22,21 +22,11 @@ from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
 from comtypes import CLSCTX_ALL
 import brain
 from email.header import decode_header
-
-
-DW_DIR = r"C:\Users\mehdi\Downloads"
-DC_DIR = r"C:\Users\mehdi\Documents"
-MUSIC_DIR = r"C:\Users\mehdi\Music"
-NIR_CMD_PATH = r"C:\Users\mehdi\Desktop\Pythonfiles\Projects\OREAON\nircmd-x64\nircmdc.exe"
-CALENDAR_FILE = r"C:\Users\mehdi\Desktop\Pythonfiles\Projects\OREAON\calendar.json"
-HTML_FILE = r"C:\Users\mehdi\Desktop\Pythonfiles\Projects\OREAON\calendar.html"
+import config
 
 CHENGDU_LAT = 30.5728
 CHENGDU_LON = 104.0668
 
-
-
-windows = gw.getAllWindows()
 
 # Map word numbers to digits
 word_to_num = {
@@ -146,7 +136,6 @@ def get_browser():
 
         # Try to connect
 
-        print("Initial connect")
         _browser = _playwright.chromium.connect_over_cdp("http://localhost:9222")
         return _browser
     
@@ -154,7 +143,6 @@ def get_browser():
 
         # If failure, close any brave session and launch a fresh brave.exe script 
 
-        print("No existing browser")
         try:
             subprocess.run("taskkill /f /im brave.exe", shell=True)
             subprocess.Popen(
@@ -248,7 +236,6 @@ def open_url(url, new= False):
         try:
             context = browser.contexts[0] if browser.contexts else browser.new_context()
             target_page = context.new_page()
-            print("1st block")
             target_page.goto(url, wait_until="commit")
         except Exception as e:
 
@@ -272,7 +259,6 @@ def open_url(url, new= False):
             if not browser_context: # If no anchor context was created, create a new context and execute from it
                 browser_context = browser.new_context()
             target_page = browser_context.new_page()
-            print("2nd block")
             target_page.goto(url, wait_until="commit")
     
     return target_page
@@ -383,7 +369,7 @@ def get_weather(hours_ahead):
         "hourly": "temperature_2m,weather_code,wind_speed_10m,precipitation",
         "timezone": "auto"
     }
-
+    
     response = requests.get(url, params=params)
     data = response.json()
     
@@ -434,16 +420,16 @@ def find_files(filename, folder=None):
     
     Returns: List of tuples: [(full_path, display_name, folder_name), ...]
     """
-    search_order = [DW_DIR, DC_DIR, MUSIC_DIR]
+    search_order = [config.DW_DIR, config.DC_DIR, config.MUSIC_DIR]
     blocked_extensions = {'.sys'}
     
     if folder:
         if folder.lower() == "music":
-            search_order = [MUSIC_DIR]
+            search_order = [config.MUSIC_DIR]
         elif folder.lower() == "downloads":
-            search_order = [DW_DIR]
+            search_order = [config.DW_DIR]
         elif folder.lower() == "documents":
-            search_order = [DC_DIR]
+            search_order = [config.DC_DIR]
     
     matches = []
 
@@ -554,11 +540,11 @@ def control(target, operation, value):
         original_value = value
         value = int((value / 100) * 65535)
         if operation == "set":
-            subprocess.run([NIR_CMD_PATH, "setsysvolume", str(value)])
+            subprocess.run([config.NIR_CMD_PATH, "setsysvolume", str(value)])
         elif operation == "increase":
-            subprocess.run([NIR_CMD_PATH, "changesysvolume", str(value)])
+            subprocess.run([config.NIR_CMD_PATH, "changesysvolume", str(value)])
         elif operation == "decrease":
-            subprocess.run([NIR_CMD_PATH, "changesysvolume", str(-value)])
+            subprocess.run([config.NIR_CMD_PATH, "changesysvolume", str(-value)])
         current = get_current_volume()
         tts.speak_async(f"I have set the volume to {current}")
         return
@@ -608,7 +594,7 @@ def handle_search(response, context):
         summary_box = page.wait_for_selector("#chatllm-main-answer-content", timeout=5000)
         if summary_box:
             text = summary_box.inner_text()
-            summary = brain.converse(f"Summarize this briefly in 2-3 sentences: {text[:2000]}", True)
+            summary = brain.converse(f"Summarize this briefly in 2-3 sentences: {text[:2000]}", save_to_history = True)
             tts.speak_async(summary)
             return True, context
     except Exception:
@@ -620,7 +606,7 @@ def handle_search(response, context):
             wiki_url = wiki_link.get_attribute("href")
             wiki_page = open_url(wiki_url, new= True)
             content = wiki_page.inner_text("#mw-content-text")
-            summary = brain.converse(f"Summarize this briefly in 2-3 sentences: {content[:2000]}", True)
+            summary = brain.converse(f"Summarize this briefly in 2-3 sentences: {content[:2000]}", save_to_history = True)
             tts.speak_async(summary)
 
     except Exception as e:
@@ -644,7 +630,6 @@ def handle_open(response, context):
         except Exception as e:
             tts.speak_async(f"I couldn't open the {target} application: {e}")
             return True, context
-    print("Calling comp")
     url = comparison(target, context)
     if url is None:
         return True, context
@@ -669,7 +654,6 @@ def handle_delete(response, context):
     return True, context
 
 def handle_find(response, context):
-    import subprocess
     target = response.get("target")
     folder = response.get("folder")
     matches = find_files(target, folder)
@@ -690,7 +674,6 @@ def handle_control(response, context):
 def handle_weather(response, context):
     time = response.get("time")
     hours = parse_time_string(time)
-    print(f"Parsed hours{hours}")
     info = get_weather(hours)
     answer = format_weather_response(info, hours)
     print(f"Answer {answer}")
@@ -706,7 +689,7 @@ def handle_sys(response, context):
             timeout=5
         )
         gpu = gpu_result.stdout.strip()
-    except:
+    except Exception:
         gpu = "unavailable"
     target = response.get("target")
     tasks = {
@@ -714,7 +697,7 @@ def handle_sys(response, context):
         "cpu": psutil.cpu_percent(interval=1),
         "ram": psutil.virtual_memory().percent,
         "storage": psutil.disk_usage('C:').percent,
-        "gpu": gpu_result.stdout.strip()
+        "gpu": gpu
     }
     if target and target in tasks:
         answer = f"{target} usage is currently at {tasks[target]}%"
@@ -793,10 +776,10 @@ def handle_spotify(response, context):
 
 def handle_calendar(response, context):
     try:
-        with open(CALENDAR_FILE, "r", encoding='utf-8') as f:
+        with open(config.CALENDAR_FILE, "r", encoding='utf-8') as f:
             data = json.load(f)
             events = data.get("events", [])
-    except:
+    except Exception:
         events = []
 
     html_content = f"""
@@ -832,10 +815,10 @@ def handle_calendar(response, context):
     </body>
     </html>
     """
-    with open(HTML_FILE, "w", encoding='utf-8') as f:
+    with open(config.HTML_FILE, "w", encoding='utf-8') as f:
         f.write(html_content)
 
-    webbrowser.open(f"file:///{HTML_FILE}")
+    webbrowser.open(f"file:///{config.HTML_FILE}")
     tts.speak_async("Opening your calendar")
     return True, context
 
@@ -870,9 +853,9 @@ def handle_schedule(response, context):
         return True, context
 
     try:
-        with open(CALENDAR_FILE, "r") as f:
+        with open(config.CALENDAR_FILE, "r") as f:
             data = json.load(f)
-    except:
+    except Exception:
         data = {"events": []}
 
     data["events"].append({
@@ -881,7 +864,7 @@ def handle_schedule(response, context):
         "title": title
     })
 
-    with open(CALENDAR_FILE, "w") as f:
+    with open(config.CALENDAR_FILE, "w") as f:
         json.dump(data, f, indent=2)
     
     date_obj = datetime.strptime(parsed_date, "%Y-%m-%d")
@@ -1011,10 +994,9 @@ def handle_email_check(response, context):
     check_inbox(sender, summarize)
     return True, context
 
+
 def run_intro():
-    mp3_path = r"C:\Users\mehdi\Music\intro.mp3"
-    cmd = f'start /min "" "{mp3_path}"'
-    subprocess.Popen(cmd, shell=True)
+    os.startfile(r"C:\Users\mehdi\Music\The Clash - Should I Stay or Should I Go.mp3")
     time.sleep(0.5)
     
     tts.speak_async("Oreaon online and ready, welcome back Sir")
@@ -1023,20 +1005,14 @@ def run_intro():
     now = datetime.now()
     time_str = now.strftime("%I:%M %p")  # e.g. "09:45 AM"
     tts.speak_async(f"The time is {time_str}.")
-    time.sleep(0.6)
+    time.sleep(1.1)
 
     weather = get_weather(0)
     weather_str = format_weather_response(weather, 0)
     tts.speak_async(weather_str)
-    time.sleep(6.1)
+    time.sleep(7)
 
-    cpu = psutil.cpu_percent(interval=1)
-    ram = psutil.virtual_memory().percent
-    battery = psutil.sensors_battery().percent
-    tts.speak_async(f"System status: CPU at {cpu}%, RAM at {ram}%, Battery at {battery}%.")
-    time.sleep(6.9)
-
-    fact = brain.converse("Give me one random short interesting fun fact (Don't say <sure> or anything, start by saying: Did you know that...)", True)
+    fact = brain.converse("Give me one new random short interesting fun fact (Don't say <sure> or anything, start by saying: Did you know that...)", save_to_history=True)
     tts.speak_async(fact)
 
 def handle_time(response, context):

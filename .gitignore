@@ -32,3 +32,8 @@ oreaon_service.py
 *.txt
 *.wav
 *.pyc
+test.wav
+*.wav
+*.txt
+config.json
+*.pyc

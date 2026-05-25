@@ -1,16 +1,13 @@
-# Oreaon
-
-[README.md](https://github.com/user-attachments/files/26698211/README.md)
 # Oreaon — Local Voice Assistant
 
-A fully offline, Iron Man-inspired voice assistant for Windows. Press f8 to activate, speak a command, and Oreaon opens apps or websites — no cloud, no API keys, no cost.
+A fully offline, Iron Man-inspired voice assistant for Windows. Double-clap or press F8 to activate, speak a command, and Oreaon handles it — no cloud, no API keys, no cost.
 
 ---
 
 ## How It Works
 
 ```
-Clap → Record command → Whisper transcribes → Ollama parses → Browser/OS executes
+Clap/F8 → Record command → Whisper transcribes → Ollama parses → Browser/OS executes
 ```
 
 ---
@@ -19,12 +16,13 @@ Clap → Record command → Whisper transcribes → Ollama parses → Browser/OS
 
 | Layer | Tool |
 |---|---|
-| Wake detection | `sounddevice` (clap via amplitude spike) |
-| Speech-to-text | `faster-whisper` (tiny, CUDA) |
-| Reasoning | Ollama — `qwen3:1.7b` |
-| Browser control | `webbrowser` (built-in) |
-| Text-to-speech | Piper TTS (local, offline) |
+| Wake detection | `sounddevice` (double clap via amplitude spike) or F8 |
+| Speech-to-text | `faster-whisper` (tiny, CUDA float16) |
+| Command parsing | Ollama — `qwen2.5:1.5b` |
+| Browser control | Playwright (CDP connection to Brave) |
+| Text-to-speech | Piper TTS — Ryan voice (local, offline) |
 | Audio playback | `sounddevice` + `numpy` |
+| UI overlay | PyQt5 floating blob widget |
 
 ---
 
@@ -34,17 +32,19 @@ Clap → Record command → Whisper transcribes → Ollama parses → Browser/OS
 - Windows 10/11
 - NVIDIA GPU with CUDA 12.x
 - [Ollama](https://ollama.com) installed and running
+- [Brave Browser](https://brave.com) installed
 - [Piper TTS](https://github.com/rhasspy/piper/releases) — `piper_windows_amd64.zip` extracted
-- Piper voice model — `en_US-lessac-medium.onnx` + `.onnx.json` from [HuggingFace](https://huggingface.co/rhasspy/piper-voices/tree/main/en/en_US/lessac/medium)
+- Piper voice model — `en_US-ryan-medium.onnx` + `.onnx.json` from [HuggingFace](https://huggingface.co/rhasspy/piper-voices/tree/main/en/en_US/ryan/medium)
 
 ### Python
 ```bash
-pip install faster-whisper sounddevice numpy scipy playwright pyautogui ollama
+pip install faster-whisper sounddevice numpy scipy playwright pyautogui ollama pyqt5 keyboard psutil screen-brightness-control send2trash pygetwindow pycaw imaplib2
+playwright install
 ```
 
 ### Ollama model
 ```bash
-ollama pull qwen3:1.7b
+ollama pull qwen2.5:1.5b
 ```
 
 ---
@@ -52,94 +52,140 @@ ollama pull qwen3:1.7b
 ## Project Structure
 
 ```
-Jarvis/
-    main.py           # Orchestrator — runs the main loop
-    tts.py            # Text-to-speech via Piper
-    listener.py       # Clap detection + voice recording
-    brain.py          # Whisper transcription + Ollama command parsing
-    executor.py       # URL/app launcher + target dictionary
-    targets.json      # Persistent command dictionary (auto-generated)
+Oreaon/
+    main.py               # Orchestrator — runs the main loop
+    brain.py              # Whisper transcription + Ollama command parsing
+    executor.py           # All action handlers + browser control
+    tts.py                # Text-to-speech via Piper, async + interruptible
+    listener.py           # Voice recording with silence detection
+    clap_detector.py      # Double-clap activation via mic amplitude
+    ui.py                 # Floating PyQt5 bubble overlay
+    state.py              # Shared state between threads
+    reminder_checker.py   # Reminder scheduling and firing
+    email_handler.py      # Gmail send/read via SMTP and IMAP
+    targets.json          # URL dictionary (auto-generated)
+    contacts.json         # Email contacts (auto-generated)
+    secrets.json          # Gmail credentials (never commit this)
+    calendar.json         # Scheduled events
+    conversation_history.json  # Persistent chat memory
     voices/
         piper/
             piper.exe
-            en_US-lessac-medium.onnx
-            en_US-lessac-medium.onnx.json
-            espeak-ng-data/
+            en_US-ryan-medium.onnx
+            en_US-ryan-medium.onnx.json
 ```
 
 ---
 
 ## Configuration
 
-Before running, update the hardcoded paths in `tts.py` and `listener.py` to match your machine:
+Update the hardcoded paths in `tts.py`, `listener.py`, and `executor.py` to match your machine before running.
 
-```python
-# tts.py
-PIPER_EXE = r"C:\path\to\piper.exe"
-VOICE_MODEL = r"C:\path\to\en_US-lessac-medium.onnx"
-
-# listener.py
-OUTPUT_WAV = r"C:\path\to\command.wav"
+Create `secrets.json` for email features:
+```json
+{
+    "gmail_address": "your.email@gmail.com",
+    "gmail_app_password": "your-16-char-app-password"
+}
 ```
 
-### Tunable parameters in `listener.py`
-
-| Parameter | Default | Description |
-|---|---|---|
-| `CLAP_THRESHOLD` | `0.3` | Minimum amplitude to detect a clap (0–1) |
-| `SILENCE_TIMEOUT` | `2` | Seconds of silence before stopping recording |
-| `MAX_DURATION` | `3` | Maximum command recording length in seconds |
-
-> If clap detection is too sensitive or not sensitive enough, adjust `CLAP_THRESHOLD` to match your mic and environment.
+Never commit `secrets.json` to version control.
 
 ---
 
 ## Usage
 
 ```bash
-cd C:\path\to\Jarvis
+cd C:\path\to\Oreaon
 python main.py
 ```
 
-1. Oreaon announces itself via TTS
-2. Toggle your microphone by pressing f8
-3. Speak your command (e.g. *"open YouTube"*)
-4. Oreaon opens the target in your browser
+1. Oreaon announces itself and loads models (~7 seconds warm start)
+2. Double-clap for the first launch intro sequence (weather, system status, fun fact)
+3. Double-clap or press F8 to activate, speak your command
+4. Press F7 to type a command instead
+5. Press F8 mid-speech to interrupt Oreaon and give a new command
 
 ---
 
-## Default Commands
+## What It Can Do
 
-| Command | Target |
+| Command example | What happens |
 |---|---|
-| open youtube | https://youtube.com |
-| open google | https://google.com |
-| launch steam | steam://open/main |
-| open settings | ms-settings: |
-| play music | https://open.spotify.com |
+| "open YouTube" | Opens YouTube in Brave, reuses existing tab |
+| "open new YouTube" | Forces a new tab regardless |
+| "search for quantum physics" | Searches Brave, reads AI summary aloud |
+| "play rap music" | Opens Spotify, searches genre, starts first track |
+| "open YouTube and play Bohemian Rhapsody" | Chains two actions |
+| "set volume to 60" | Sets system volume via NirCmd |
+| "increase brightness by 20" | Adjusts screen brightness |
+| "pause" / "next" | Media controls via keyboard injection into active browser tab |
+| "what's the weather in 3 hours?" | Fetches Open-Meteo forecast, speaks it |
+| "remind me to call mom at 3 PM" | Schedules a reminder |
+| "check my emails" | Reads subject lines of 5 most recent Gmail messages |
+| "summarize emails from Mehdi" | Fetches body, summarizes via Ollama |
+| "send an email to mom saying I'll be late" | Sends via Gmail SMTP |
+| "what's my CPU?" | Reads system stats |
+| "minimize chrome" | Controls windows via pygetwindow |
+| "should I eat apples or bananas?" | Conversational response with history |
+| "goodbye" | Shuts down cleanly |
 
-### Adding new commands
+---
 
-If Oreaon doesn't recognise a command, it will ask if you want to add it. New entries are saved to `targets.json` and available immediately on the next run.
+## Why These Tools
+
+**faster-whisper over standard Whisper**
+
+Standard Whisper runs on CPU by default. faster-whisper uses a CTranslate2 backend that runs on the RTX 2060 with float16 — roughly 4x faster. The tradeoff is the tiny model misses words occasionally, which is partially handled by confidence thresholds: segments with high `no_speech_prob` or low `avg_logprob` get rejected rather than passed as garbage to the parser.
+
+**qwen2.5:1.5b over qwen3:1.7b**
+
+qwen3:1.7b has a built-in reasoning chain that it runs regardless of whether you tell it not to. Every command triggered 3-8 seconds of internal "thinking" before returning an answer. qwen2.5:1.5b has no thinking chain, drops response time to under a second, and the accuracy difference on structured command parsing is negligible.
+
+**Piper over gTTS or ElevenLabs**
+
+gTTS requires internet and sends your text to Google. ElevenLabs charges per character. Piper runs entirely on-device, adds zero network latency, works without internet, and works in regions with API restrictions. The tradeoff is voice quality — it's not ElevenLabs. For a voice assistant that speaks short commands and weather reports, it's fine.
+
+**Playwright + CDP over webbrowser module**
+
+`webbrowser.open()` is fire-and-forget — you can't interact with the page after opening it. Playwright connects to an already-running Brave instance via Chrome DevTools Protocol, which means it reuses your existing session with all cookies and logins intact. Spotify stays logged in, tabs restore between restarts, and Oreaon can click, type, and read page content.
+
+**format="json" over regex parsing**
+
+Regex on LLM output breaks the moment the model adds an extra space, newline, or decides to wrap its answer in a sentence. `format="json"` enforces valid JSON at the inference level — the model physically cannot produce malformed output. It also runs slightly faster since the model skips generating any prose.
+
+**Conversation summarization over truncation**
+
+At 25 exchanges, the history gets summarized into a few sentences by the same model, then replaces the full log. Truncation would just delete early context. Summarization keeps the semantic content — if you mentioned something important 20 messages ago, it survives in the summary. The 25-message limit was chosen to balance context depth against the 4096-token context window.
+
+**Threading at startup**
+
+Cold startup used to take 23 seconds. Whisper and Ollama were loading sequentially. Both are now loaded in parallel threads, and Ollama was moved from a cloud/remote endpoint to a local instance. Startup is now ~7 seconds.
 
 ---
 
 ## Known Limitations
 
-- **Whisper tiny** may mishear commands, especially with non-native accents. Upgrade to `base` or `small` for better accuracy at the cost of speed.
-- **Fan/background noise** can interfere with silence detection. Tune `CLAP_THRESHOLD` and the silence threshold in `listener.py` (`0.15` by default) to match your environment.
-- **Max command duration** is capped at 3 seconds. Longer commands get truncated.
-- **Single action only** — current version supports `open` commands only. Search, file operations, and OS control are planned for future versions.
+- **Whisper tiny** drops words, especially with background noise or non-native accents. Upgrade to `base` or `small` for better accuracy at the cost of ~1-2s latency.
+- **Spotify DOM selectors** are hardcoded against Spotify's current web player. If Spotify updates their frontend, playback control will break and selectors need updating.
+- **Clap detection threshold** needs manual tuning per microphone. Noise-cancelling headsets suppress clap transients aggressively — the threshold may need to go as low as 0.05.
+- **CDP stale reference bug** — if Brave is closed while Oreaon is running, the browser reference goes stale. Oreaon detects and recovers from this, but the first command after reopen may fail.
+- **Email body summarization** depends on plain-text email content. HTML-only emails with no text fallback will return empty body.
+- **Command chaining** is limited to two actions. "Open YouTube and play X and search for Y" won't work.
 
 ---
 
-## Roadmap
+## Adding New Commands
 
-- [ ] Search commands ("search X on YouTube")
-- [ ] OS-level control (open apps, move files)
-- [ ] Wake word instead of clap activation
-- [ ] Upgrade to `qwen3:8b` for complex commands
-- [ ] GUI overlay
+If Oreaon doesn't recognize an app or website, it asks whether to add it. New entries go into `targets.json` and are available immediately without restarting.
+
+For email contacts, add them to `contacts.json`:
+```json
+{
+    "mom": "mom@gmail.com",
+    "john": "john.doe@gmail.com"
+}
+```
 
 ---
 

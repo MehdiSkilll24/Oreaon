@@ -1,8 +1,7 @@
 from faster_whisper import WhisperModel
 import ollama
 import json, os
-
-audio_path = r"C:\Users\mehdi\Desktop\Pythonfiles\Projects\OREAON\command.wav"
+import config
 
 counter = 0
 
@@ -213,5 +212,5 @@ def understand(text):
 
 
 if __name__  == "__main__":
-    text= transcribe(audio_path)
+    text= transcribe(config.OUTPUT_WAV)
     result = understand(text)

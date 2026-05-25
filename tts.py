@@ -3,10 +3,7 @@ import sounddevice as sd
 import numpy as np
 import wave
 import time, threading
-
-PIPER_EXE = r"C:\Users\mehdi\Desktop\Pythonfiles\Projects\OREAON\voices\piper\piper.exe"
-VOICE_MODEL = r"C:\Users\mehdi\Desktop\Pythonfiles\Projects\Oreaon\voices\piper\en_US-ryan-medium.onnx.json"
-OUTPUT_WAV = r"C:\Users\mehdi\Desktop\Pythonfiles\Projects\OREAON\test.wav"
+import config
 
 _tts_process = None
 _stop_flag = False
@@ -30,7 +27,7 @@ def speak(text: str):
         f.write(text)
     
     piper_dir = r"C:\Users\mehdi\Desktop\Pythonfiles\Projects\OREAON\voices\piper"
-    cmd = f'powershell -Command "Get-Content \'{temp_file}\' | & \'{piper_dir}\\piper.exe\' --model \'{piper_dir}\\en_US-ryan-medium.onnx\' --output_file \'{OUTPUT_WAV}\'"'
+    cmd = f'powershell -Command "Get-Content \'{temp_file}\' | & \'{piper_dir}\\piper.exe\' --model \'{piper_dir}\\en_US-ryan-medium.onnx\' --output_file \'{config.TEMP_SPEECH}\'"'
     
     _tts_process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     _tts_process.communicate()
@@ -39,7 +36,7 @@ def speak(text: str):
         print(f"Stderr: {_tts_process.returncode}")
         return
     
-    with wave.open(OUTPUT_WAV, 'rb') as f:
+    with wave.open(config.TEMP_SPEECH, 'rb') as f:
         rate = f.getframerate()
         frames = f.readframes(f.getnframes())
         audio = np.frombuffer(frames, dtype=np.int16)

@@ -3,7 +3,6 @@ from faster_whisper import WhisperModel
 
 ui_thread = threading.Thread(target=ui.run_ui, daemon=True)
 ui_thread.start()
-print("Ui on")
 audio_queue = queue.Queue()
 os.environ["HF_HUB_OFFLINE"] = "1"
 
