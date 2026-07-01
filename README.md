@@ -16,13 +16,14 @@ Clap/F8 → Record command → Whisper transcribes → Ollama parses → Browser
 
 | Layer | Tool |
 |---|---|
-| Wake detection | `sounddevice` (double clap via amplitude spike) or F8 |
+| Wake detection | RMS pre-filter → CNN binary classifier on mel spectrogram, or F8 |
 | Speech-to-text | `faster-whisper` (tiny, CUDA float16) |
 | Command parsing | Ollama — `qwen2.5:1.5b` |
 | Browser control | Playwright (CDP connection to Brave) |
 | Text-to-speech | Piper TTS — Ryan voice (local, offline) |
 | Audio playback | `sounddevice` + `numpy` |
 | UI overlay | PyQt5 floating blob widget |
+| Clap classifier | PyTorch CNN trained on mel spectrograms |
 
 ---
 
@@ -38,7 +39,7 @@ Clap/F8 → Record command → Whisper transcribes → Ollama parses → Browser
 
 ### Python
 ```bash
-pip install faster-whisper sounddevice numpy scipy playwright pyautogui ollama pyqt5 keyboard psutil screen-brightness-control send2trash pygetwindow pycaw imaplib2
+pip install faster-whisper sounddevice numpy scipy playwright pyautogui ollama pyqt5 keyboard psutil screen-brightness-control send2trash pygetwindow pycaw imaplib2 torch torchaudio scikit-learn
 playwright install
 ```
 
@@ -58,7 +59,14 @@ Oreaon/
     executor.py           # All action handlers + browser control
     tts.py                # Text-to-speech via Piper, async + interruptible
     listener.py           # Voice recording with silence detection
-    clap_detector.py      # Double-clap activation via mic amplitude
+    clap_detector.py      # Double-clap activation — RMS pre-filter + ML verification
+    inference.py          # ClapDetector class — loads model, runs prediction
+    model.py              # CNN architecture definition
+    dataset.py            # Dataset class — loads wavs, mel spectrogram transform
+    train.py              # Training script — stratified split, BCEWithLogitsLoss
+    cfg.py                # Shared config — MEL_PARAMS, SAMPLE_RATE, TARGET_LENGTH
+    best_model.pt         # Trained model weights
+    record_negatives.py   # Utility script to record negative training samples
     ui.py                 # Floating PyQt5 bubble overlay
     state.py              # Shared state between threads
     reminder_checker.py   # Reminder scheduling and firing
@@ -68,6 +76,9 @@ Oreaon/
     secrets.json          # Gmail credentials (never commit this)
     calendar.json         # Scheduled events
     conversation_history.json  # Persistent chat memory
+    data/
+        claps/            # Positive training samples (wav) — not committed
+        negatives/        # Negative training samples (wav) — not committed
     voices/
         piper/
             piper.exe
@@ -164,11 +175,40 @@ Cold startup used to take 23 seconds. Whisper and Ollama were loading sequential
 
 ---
 
+## Clap Detection — ML Pipeline
+
+The original clap detector triggered on any sound exceeding an RMS amplitude threshold. This meant blowing into the mic, dropping something, or any sharp noise would activate Oreaon. RMS measures loudness only — it carries no information about what the sound actually is.
+
+**The fix: mel spectrogram + CNN binary classifier.**
+
+A mel spectrogram converts a raw audio waveform into a 2D frequency-time representation — the x-axis is time, the y-axis is frequency on a perceptually-scaled mel scale, and pixel intensity encodes energy. A clap has a distinctive pattern in this space: a sharp vertical stripe of broadband energy (all frequencies excited simultaneously) that appears and disappears in milliseconds. Blowing into a mic produces sustained low-frequency energy — a completely different shape. This gives the model a feature-rich 2D image to classify rather than a single amplitude scalar.
+
+The architecture is a three-layer CNN followed by global average pooling and two linear layers ending in a single sigmoid output (binary classification: clap vs not-clap). Training used BCEWithLogitsLoss with a stratified 80/20 train/val split.
+
+**Training data:** 164 double-clap recordings, 250 negative samples. Negatives were recorded in two phases — first a broad ambient session (silence, talking, keyboard, footsteps), then a targeted hard-negative session after identifying specific false positives in live testing.
+
+**Iteration log:**
+
+| Run | Claps | Negatives | Best val_loss | Best val_acc | Change |
+|---|---|---|---|---|---|
+| 1 | 115 | 150 | 0.2095 | 96.2% | Baseline — pipeline smoke test |
+| 2 | 115 | 200 | 0.1556 | 96.8% | Added hard negatives (keys falling) — best overall |
+| 3 | 115 | 250 | 0.2189 | 91.8% | Added more hard negatives (bottle) — class imbalance degraded results |
+| 4 | 164 | 250 | 0.1859 | 92.8% | Rebalanced claps — partially recovered from run 3 regression |
+
+Run 3 revealed that adding negatives without matching clap volume worsens the class ratio and hurts performance — the model sees roughly twice as many negatives per epoch and biases toward predicting "not a clap." Run 4 corrected this by recording additional claps.
+
+**Deployment architecture:** RMS double-clap detection acts as a cheap pre-filter. Only when it fires does the CNN run inference on the buffered audio. This avoids running a neural network on every audio chunk continuously, keeping CPU overhead negligible.
+
+**Honest limitations:** Validation accuracy is measured on held-out data from the same recording session, same room, same microphone. Real-world performance on a different mic or acoustic environment will likely be lower. Certain percussive hard negatives (objects falling on hard surfaces) still occasionally produce false positives despite targeted training data — the acoustic similarity to a clap in the mel spectrogram is high enough that the current dataset volume isn't sufficient to draw a clean boundary for every case.
+
+---
+
 ## Known Limitations
 
 - **Whisper tiny** drops words, especially with background noise or non-native accents. Upgrade to `base` or `small` for better accuracy at the cost of ~1-2s latency.
 - **Spotify DOM selectors** are hardcoded against Spotify's current web player. If Spotify updates their frontend, playback control will break and selectors need updating.
-- **Clap detection threshold** needs manual tuning per microphone. Noise-cancelling headsets suppress clap transients aggressively — the threshold may need to go as low as 0.05.
+- **Clap detection** uses a CNN trained on one microphone in one room. On a different mic or acoustic environment, the RMS threshold and/or model confidence threshold (`THRESHOLD = 0.7` in `inference.py`) may need retuning. Noise-cancelling headsets suppress clap transients aggressively — lower the RMS threshold toward 0.05 if double-claps aren't triggering.
 - **CDP stale reference bug** — if Brave is closed while Oreaon is running, the browser reference goes stale. Oreaon detects and recovers from this, but the first command after reopen may fail.
 - **Email body summarization** depends on plain-text email content. HTML-only emails with no text fallback will return empty body.
 - **Command chaining** is limited to two actions. "Open YouTube and play X and search for Y" won't work.

@@ -37,3 +37,4 @@ test.wav
 *.txt
 config.json
 *.pyc
+*.wav
